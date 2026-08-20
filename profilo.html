@@ -43,14 +43,6 @@
     <div id="favorites-grid" class="grid"></div>
     <div id="favorites-empty" style="font-size:13px;color:var(--color-neutral-700);display:none">Non hai ancora scelto dei preferiti — sono la prima cosa che vedono i tuoi amici sul tuo profilo.</div>
   </div>
-
-  <div class="settings-divider">
-    <h4>Impostazioni</h4>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <a href="/api/export" class="btn btn-secondary btn-block">Esporta collezione (CSV)</a>
-      <button class="btn btn-outline btn-block" id="open-delete-account-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Elimina account</button>
-    </div>
-  </div>
 </div>
 
 <!-- pannello: modifica foto e bio -->
@@ -71,6 +63,14 @@
     <textarea class="input" id="p-bio" rows="3" maxlength="280" placeholder="Qualche parola su di te e sui tuoi gusti musicali…"></textarea>
   </div>
   <button class="btn btn-primary btn-block" id="save-profile-btn">Salva</button>
+
+  <div class="settings-divider">
+    <h4>Impostazioni</h4>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <a href="/api/export" class="btn btn-secondary btn-block">Esporta collezione (CSV)</a>
+      <button class="btn btn-outline btn-block" id="open-delete-account-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Elimina account</button>
+    </div>
+  </div>
 </div>
 <div class="sheet" id="favorites-sheet">
   <div class="sheet-handle"></div>
@@ -201,7 +201,7 @@
   document.getElementById('manage-favorites-btn').addEventListener('click', () => { renderPicker(); openSheet('favorites-sheet'); });
   document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('edit-profile-sheet'); closeSheet('favorites-sheet'); closeSheet('delete-account-sheet'); });
 
-  document.getElementById('open-delete-account-btn').addEventListener('click', () => openSheet('delete-account-sheet'));
+  document.getElementById('open-delete-account-btn').addEventListener('click', () => { closeSheet('edit-profile-sheet'); openSheet('delete-account-sheet'); });
   document.getElementById('cancel-delete-account-btn').addEventListener('click', () => closeSheet('delete-account-sheet'));
   document.getElementById('delete-confirm-input').addEventListener('input', (e) => {
     document.getElementById('confirm-delete-account-btn').disabled = e.target.value.trim() !== me.username;

@@ -136,6 +136,13 @@ async function discogsPriceSuggestion(env, releaseId, conditionMedia) {
 async function handleApi(request, env, pathname, method) {
   // --- rotte pubbliche (login, bootstrap, invito) ---
 
+  // dice alla pagina di registrazione se serve ancora il bootstrap (nessun account)
+  // o se ormai va sempre richiesto un codice di invito.
+  if (pathname === '/api/bootstrap-status' && method === 'GET') {
+    const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM users').first();
+    return json({ open: count.c === 0 });
+  }
+
   if (pathname === '/api/login' && method === 'POST') {
     const body = await request.json().catch(() => null);
     if (!body || !body.username || !body.password) return json({ error: 'credenziali mancanti' }, 400);

@@ -37,13 +37,19 @@
     <button class="btn btn-primary btn-block" type="submit" id="login-submit">Accedi</button>
   </form>
 
-  <div style="text-align:center;font-size:13px;color:var(--color-neutral-700)">
-    Prima persona ad usare Solco? <a href="/register.html" id="bootstrap-link">Crea il primo account</a>
+  <div style="text-align:center;font-size:13px;color:var(--color-neutral-700)" id="register-line">
+    Hai un codice di invito? <a href="/register.html" id="register-link">Registrati</a>
   </div>
 </div>
 
 <script src="/assets/app.js"></script>
 <script>
+  fetch('/api/bootstrap-status').then(r => r.json()).then(data => {
+    if (data.open) {
+      document.getElementById('register-line').innerHTML = 'Prima persona ad usare Solco? <a href="/register.html">Crea il primo account</a>';
+    }
+  }).catch(() => {});
+
   const form = document.getElementById('login-form');
   const errorEl = document.getElementById('login-error');
   const submitBtn = document.getElementById('login-submit');

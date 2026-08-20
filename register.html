@@ -27,7 +27,7 @@
   <form id="register-form" style="display:flex;flex-direction:column;gap:16px" novalidate>
     <div class="field" id="invite-field" style="display:none">
       <label for="code">Codice invito</label>
-      <input class="input" id="code" name="code" required>
+      <input class="input" id="code" name="code" autocomplete="off" required>
     </div>
     <div class="field">
       <label for="username">Nome utente</label>
@@ -53,13 +53,30 @@
 <script src="/assets/app.js"></script>
 <script>
   const params = new URLSearchParams(location.search);
-  const inviteCode = params.get('invite');
-  if (inviteCode) {
-    document.getElementById('page-title').textContent = 'Unisciti a Solco';
-    document.getElementById('page-sub').textContent = 'Avrai la tua collezione personale e potrai vedere quella dei tuoi amici.';
-    document.getElementById('invite-field').style.display = 'flex';
-    document.getElementById('code').value = inviteCode;
+  const prefillCode = params.get('invite');
+  let bootstrapOpen = false; // per sicurezza, di default si assume "serve un codice"
+
+  async function detectMode() {
+    try {
+      const res = await fetch('/api/bootstrap-status');
+      const data = await res.json();
+      bootstrapOpen = !!data.open;
+    } catch { bootstrapOpen = false; }
+
+    if (bootstrapOpen) {
+      document.getElementById('page-title').textContent = 'Crea il primo account';
+      document.getElementById('page-sub').textContent = 'Avrai la tua collezione personale e diventerai Amministratore di Solco.';
+      document.getElementById('invite-field').style.display = 'none';
+      document.getElementById('code').required = false;
+    } else {
+      document.getElementById('page-title').textContent = 'Unisciti a Solco';
+      document.getElementById('page-sub').textContent = 'Inserisci il codice che ti ha dato chi ti ha invitato. Avrai la tua collezione personale e potrai vedere quella dei tuoi amici.';
+      document.getElementById('invite-field').style.display = 'flex';
+      document.getElementById('code').required = true;
+      if (prefillCode) document.getElementById('code').value = prefillCode;
+    }
   }
+  detectMode();
 
   const form = document.getElementById('register-form');
   const errorEl = document.getElementById('reg-error');
@@ -71,9 +88,9 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Creazione…';
     try {
-      const endpoint = inviteCode ? '/api/register' : '/api/bootstrap';
+      const endpoint = bootstrapOpen ? '/api/bootstrap' : '/api/register';
       const body = { username: form.username.value.trim(), email: form.email.value.trim(), password: form.password.value };
-      if (inviteCode) body.code = form.code.value.trim();
+      if (!bootstrapOpen) body.code = form.code.value.trim();
       const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Non è stato possibile creare l\'account');
