@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Amici</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  var desktopOk = document.cookie.indexOf('desktop_ok=1') !== -1;
+  if (!desktopOk && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen">
+  <div class="topbar"><h1>Amici</h1></div>
+
+  <div id="friends-list" style="display:flex;flex-direction:column;gap:2px"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <h3>Sei solo qui, per ora</h3>
+    <p>Invita qualcuno dal pannello "Utenti e inviti" per vedere la sua collezione.</p>
+  </div>
+</div>
+
+<nav class="tabbar">
+  <a class="tab" href="/index.html"><span class="tab-icon">▤</span>Libreria</a>
+  <button class="tab active"><span class="tab-icon">◐</span>Amici</button>
+  <a class="tab" href="/statistiche.html"><span class="tab-icon">◆</span>Statistiche</a>
+  <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
+</nav>
+
+<script src="/assets/app.js"></script>
+<script>
+  async function init() {
+    try {
+      const { friends } = await api('/api/friends');
+      const list = document.getElementById('friends-list');
+      if (friends.length === 0) { document.getElementById('empty-state').style.display = 'block'; return; }
+      list.innerHTML = friends.map(f => `
+        <a class="detail-row" style="align-items:center;text-decoration:none;color:inherit" href="/amico.html?user=${encodeURIComponent(f.username)}">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:44px;height:44px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden">
+              ${f.avatar_url
+                ? `<img src="${f.avatar_url}" style="width:100%;height:100%;object-fit:cover">`
+                : `<span style="font-family:var(--font-heading);font-weight:800;color:var(--color-neutral-700)">${f.username[0].toUpperCase()}</span>`}
+            </div>
+            <div>
+              <div style="font-family:var(--font-heading);font-weight:800;font-size:15px">${f.username}</div>
+              <div style="font-size:12px;color:var(--color-neutral-700)">${f.count} dischi${f.bio ? ' · ' + f.bio : ''}</div>
+            </div>
+          </div>
+          <span style="font-size:13px;color:var(--color-neutral-700)">${formatEuro(f.total_value)}</span>
+        </a>
+      `).join('');
+    } catch (err) { toast(err.message); }
+  }
+  init();
+</script>
+</body>
+</html>

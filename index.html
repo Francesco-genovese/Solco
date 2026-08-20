@@ -45,6 +45,7 @@
 
 <nav class="tabbar">
   <button class="tab active"><span class="tab-icon">▤</span>Libreria</button>
+  <a class="tab" href="/amici.html"><span class="tab-icon">◐</span>Amici</a>
   <a class="tab" href="/statistiche.html"><span class="tab-icon">◆</span>Statistiche</a>
   <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
 </nav>
@@ -53,7 +54,14 @@
 <div class="sheet-backdrop" id="sheet-backdrop"></div>
 <div class="sheet" id="profile-sheet">
   <div class="sheet-handle"></div>
-  <h3 id="profile-username">—</h3>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="profile-avatar" style="width:52px;height:52px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div>
+      <h3 id="profile-username" style="font-size:18px">—</h3>
+      <p id="profile-bio" style="font-size:13px;color:var(--color-neutral-700);margin-top:2px"></p>
+    </div>
+  </div>
+  <a href="/profilo.html" class="btn btn-secondary btn-block">Modifica profilo</a>
   <div id="admin-link-wrap" style="display:none">
     <a href="/admin.html" class="btn btn-secondary btn-block">Gestisci utenti e inviti</a>
   </div>
@@ -107,6 +115,10 @@
     const me = await loadCurrentUser();
     if (me) {
       document.getElementById('profile-username').textContent = me.username;
+      document.getElementById('profile-bio').textContent = me.bio || '';
+      document.getElementById('profile-avatar').innerHTML = me.avatar_url
+        ? `<img src="${me.avatar_url}" style="width:100%;height:100%;object-fit:cover">`
+        : `<span style="font-family:var(--font-heading);font-weight:800;color:var(--color-neutral-700)">${me.username[0].toUpperCase()}</span>`;
       if (me.role === 'Amministratore') document.getElementById('admin-link-wrap').style.display = 'block';
     }
     try {

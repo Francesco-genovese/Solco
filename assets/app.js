@@ -66,3 +66,27 @@ async function doLogout() { await fetch('/api/logout'); location.href = '/login.
 async function loadCurrentUser() {
   try { return await api('/api/me'); } catch { return null; }
 }
+
+// --- ridimensiona una foto scelta dal telefono in un piccolo avatar quadrato ---
+// evita di salvare nel database immagini enormi: tutto resta locale finché non è pronto.
+function resizeImageToDataUrl(file, maxSize = 320, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('lettura immagine fallita'));
+    reader.onload = () => {
+      img.onerror = () => reject(new Error('immagine non valida'));
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize; canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}

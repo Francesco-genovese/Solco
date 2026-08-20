@@ -21,7 +21,7 @@
   <div>
     <div style="font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-family:var(--font-heading);font-weight:800">Solco</div>
     <h1 style="font-size:34px;margin-top:14px;line-height:1.05" id="page-title">Crea il primo account</h1>
-    <p id="page-sub" style="margin-top:10px;font-size:14px;color:var(--color-neutral-700)">Diventerai Amministratore della libreria.</p>
+    <p id="page-sub" style="margin-top:10px;font-size:14px;color:var(--color-neutral-700)">Avrai la tua collezione personale e diventerai Amministratore di Solco.</p>
   </div>
 
   <form id="register-form" style="display:flex;flex-direction:column;gap:16px" novalidate>
@@ -56,7 +56,7 @@
   const inviteCode = params.get('invite');
   if (inviteCode) {
     document.getElementById('page-title').textContent = 'Unisciti a Solco';
-    document.getElementById('page-sub').textContent = 'Sei stato invitato alla libreria condivisa.';
+    document.getElementById('page-sub').textContent = 'Avrai la tua collezione personale e potrai vedere quella dei tuoi amici.';
     document.getElementById('invite-field').style.display = 'flex';
     document.getElementById('code').value = inviteCode;
   }

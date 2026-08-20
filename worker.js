@@ -193,7 +193,49 @@ async function handleApi(request, env, pathname, method) {
   if (!sessionUser) return json({ error: 'non autenticato' }, 401);
 
   if (pathname === '/api/me' && method === 'GET') {
-    return json({ username: sessionUser.username, email: sessionUser.email, role: sessionUser.role, avatar_url: sessionUser.avatar_url || null });
+    const full = await env.DB.prepare('SELECT bio, created_at FROM users WHERE id = ?').bind(sessionUser.id).first();
+    return json({
+      username: sessionUser.username, email: sessionUser.email, role: sessionUser.role,
+      avatar_url: sessionUser.avatar_url || null, bio: full?.bio || null, created_at: full?.created_at || null,
+    });
+  }
+
+  if (pathname === '/api/me' && method === 'PATCH') {
+    const b = await request.json().catch(() => ({}));
+    if (b.avatar_url && b.avatar_url.length > 350000) return json({ error: 'immagine troppo grande' }, 400);
+    const sets = [], vals = [];
+    if ('bio' in b) { sets.push('bio = ?'); vals.push((b.bio || '').slice(0, 280) || null); }
+    if ('avatar_url' in b) { sets.push('avatar_url = ?'); vals.push(b.avatar_url || null); }
+    if (sets.length === 0) return json({ error: 'niente da aggiornare' }, 400);
+    vals.push(sessionUser.id);
+    await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+    return json({ ok: true });
+  }
+
+  // --- amici: altri membri della libreria privata e le loro collezioni ---
+
+  if (pathname === '/api/friends' && method === 'GET') {
+    const { results: users } = await env.DB.prepare(
+      "SELECT username, avatar_url, bio FROM users WHERE username != ? AND status = 'ok' ORDER BY username"
+    ).bind(sessionUser.username).all();
+    const { results: agg } = await env.DB.prepare(
+      'SELECT added_by, COUNT(*) AS count, SUM(value_estimate) AS total_value FROM album GROUP BY added_by'
+    ).all();
+    const aggMap = Object.fromEntries(agg.map(a => [a.added_by, a]));
+    const friends = users.map(u => ({
+      username: u.username, avatar_url: u.avatar_url || null, bio: u.bio || null,
+      count: aggMap[u.username]?.count || 0, total_value: Math.round(aggMap[u.username]?.total_value || 0),
+    }));
+    return json({ friends });
+  }
+
+  const friendMatch = pathname.match(/^\/api\/friends\/([^/]+)$/);
+  if (friendMatch && method === 'GET') {
+    const username = decodeURIComponent(friendMatch[1]);
+    const user = await env.DB.prepare("SELECT username, avatar_url, bio, created_at FROM users WHERE username = ? AND status = 'ok'").bind(username).first();
+    if (!user) return json({ error: 'non trovato' }, 404);
+    const { results: albums } = await env.DB.prepare('SELECT * FROM album WHERE added_by = ? ORDER BY added_at DESC').bind(username).all();
+    return json({ user, albums });
   }
 
   // --- amministrazione utenti / inviti (solo Amministratore) ---
@@ -238,7 +280,7 @@ async function handleApi(request, env, pathname, method) {
   // --- libreria: album ---
 
   if (pathname === '/api/album' && method === 'GET') {
-    const { results } = await env.DB.prepare('SELECT * FROM album ORDER BY added_at DESC').all();
+    const { results } = await env.DB.prepare('SELECT * FROM album WHERE added_by = ? ORDER BY added_at DESC').bind(sessionUser.username).all();
     return json({ albums: results });
   }
 
@@ -272,6 +314,9 @@ async function handleApi(request, env, pathname, method) {
       return json({ album: row });
     }
     if (method === 'PATCH') {
+      const owner = await env.DB.prepare('SELECT added_by FROM album WHERE id = ?').bind(id).first();
+      if (!owner) return json({ error: 'non trovato' }, 404);
+      if (owner.added_by !== sessionUser.username) return json({ error: 'non è un disco tuo' }, 403);
       const b = await request.json().catch(() => ({}));
       const fields = ['artist', 'title', 'label', 'catalog_number', 'year', 'genre', 'country', 'condition_media',
         'condition_sleeve', 'pressing_note', 'value_estimate', 'value_low', 'value_high', 'notes'];
@@ -283,6 +328,9 @@ async function handleApi(request, env, pathname, method) {
       return json({ ok: true });
     }
     if (method === 'DELETE') {
+      const owner = await env.DB.prepare('SELECT added_by FROM album WHERE id = ?').bind(id).first();
+      if (!owner) return json({ error: 'non trovato' }, 404);
+      if (owner.added_by !== sessionUser.username) return json({ error: 'non è un disco tuo' }, 403);
       await env.DB.prepare('DELETE FROM album WHERE id = ?').bind(id).run();
       return json({ ok: true });
     }
@@ -291,7 +339,7 @@ async function handleApi(request, env, pathname, method) {
   // --- da cercare (wishlist) ---
 
   if (pathname === '/api/wishlist' && method === 'GET') {
-    const { results } = await env.DB.prepare('SELECT * FROM wishlist ORDER BY priority ASC, added_at DESC').all();
+    const { results } = await env.DB.prepare('SELECT * FROM wishlist WHERE added_by = ? ORDER BY priority ASC, added_at DESC').bind(sessionUser.username).all();
     return json({ wishlist: results });
   }
   if (pathname === '/api/wishlist' && method === 'POST') {
@@ -303,10 +351,14 @@ async function handleApi(request, env, pathname, method) {
   }
   const wishIdMatch = pathname.match(/^\/api\/wishlist\/(\d+)$/);
   if (wishIdMatch && method === 'DELETE') {
+    const wish = await env.DB.prepare('SELECT added_by FROM wishlist WHERE id = ?').bind(wishIdMatch[1]).first();
+    if (wish && wish.added_by !== sessionUser.username) return json({ error: 'non è tuo' }, 403);
     await env.DB.prepare('DELETE FROM wishlist WHERE id = ?').bind(wishIdMatch[1]).run();
     return json({ ok: true });
   }
   if (wishIdMatch && method === 'PATCH') {
+    const wish = await env.DB.prepare('SELECT added_by FROM wishlist WHERE id = ?').bind(wishIdMatch[1]).first();
+    if (wish && wish.added_by !== sessionUser.username) return json({ error: 'non è tuo' }, 403);
     const b = await request.json().catch(() => ({}));
     if (b.priority) await env.DB.prepare('UPDATE wishlist SET priority = ? WHERE id = ?').bind(b.priority, wishIdMatch[1]).run();
     return json({ ok: true });
@@ -317,6 +369,7 @@ async function handleApi(request, env, pathname, method) {
   if (wishFoundMatch && method === 'POST') {
     const wish = await env.DB.prepare('SELECT * FROM wishlist WHERE id = ?').bind(wishFoundMatch[1]).first();
     if (!wish) return json({ error: 'non trovato' }, 404);
+    if (wish.added_by !== sessionUser.username) return json({ error: 'non è tuo' }, 403);
     const b = await request.json().catch(() => ({}));
     const palette = ['#201e1d', '#1440d8', '#8ba2ff', '#bab6b6', '#d7d3d3', '#0d1a45'];
     const result = await env.DB.prepare(
@@ -339,7 +392,7 @@ async function handleApi(request, env, pathname, method) {
   // --- statistiche della collezione ---
 
   if (pathname === '/api/stats' && method === 'GET') {
-    const { results: albums } = await env.DB.prepare('SELECT year, condition_media, value_estimate, added_at FROM album').all();
+    const { results: albums } = await env.DB.prepare('SELECT year, condition_media, value_estimate, added_at FROM album WHERE added_by = ?').bind(sessionUser.username).all();
     const count = albums.length;
     const totalValue = albums.reduce((s, a) => s + (a.value_estimate || 0), 0);
 

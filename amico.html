@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Collezione</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  var desktopOk = document.cookie.indexOf('desktop_ok=1') !== -1;
+  if (!desktopOk && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen screen--no-tabbar" id="content" style="display:none">
+  <div class="topbar">
+    <a href="/amici.html" class="back-link">← Amici</a>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px">
+    <div id="avatar" style="width:56px;height:56px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div>
+      <h1 style="font-size:24px" id="username"></h1>
+      <p style="font-size:13px;color:var(--color-neutral-700)" id="bio"></p>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-label">Dischi</div><div class="stat-value" id="stat-count">—</div></div>
+    <div class="stat"><div class="stat-label">Valore</div><div class="stat-value" id="stat-value">—</div></div>
+  </div>
+
+  <div id="grid" class="grid"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <h3>Ancora nessun disco</h3>
+    <p>Questa collezione è vuota, per ora.</p>
+  </div>
+</div>
+
+<div class="center-msg" id="loading-msg"><div class="spinner"></div></div>
+
+<script src="/assets/app.js"></script>
+<script>
+  const username = new URLSearchParams(location.search).get('user');
+
+  async function init() {
+    if (!username) { location.href = '/amici.html'; return; }
+    try {
+      const data = await api('/api/friends/' + encodeURIComponent(username));
+      document.getElementById('username').textContent = data.user.username;
+      document.getElementById('bio').textContent = data.user.bio || '';
+      document.getElementById('avatar').innerHTML = data.user.avatar_url
+        ? `<img src="${data.user.avatar_url}" style="width:100%;height:100%;object-fit:cover">`
+        : `<span style="font-family:var(--font-heading);font-weight:800;font-size:22px;color:var(--color-neutral-700)">${data.user.username[0].toUpperCase()}</span>`;
+
+      const totalValue = data.albums.reduce((s, a) => s + (a.value_estimate || 0), 0);
+      document.getElementById('stat-count').textContent = data.albums.length;
+      document.getElementById('stat-value').textContent = formatEuro(totalValue);
+
+      if (data.albums.length === 0) {
+        document.getElementById('empty-state').style.display = 'block';
+      } else {
+        document.getElementById('grid').innerHTML = data.albums.map(a => `
+          <div class="record-card">
+            <div class="record-cover" style="background:${coverColorFor(a)};color:#fff">
+              <div class="cover-title">${a.title}</div>
+            </div>
+            <div class="record-artist">${a.artist}</div>
+            <div class="record-meta"><span>${a.condition_media}</span><span>${formatEuro(a.value_estimate)}</span></div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('loading-msg').style.display = 'none';
+      document.getElementById('content').style.display = 'flex';
+    } catch (err) { toast(err.message); location.href = '/amici.html'; }
+  }
+  init();
+</script>
+</body>
+</html>

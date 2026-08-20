@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   status TEXT NOT NULL DEFAULT 'ok',        -- 'ok' | 'sospeso'
   password_hash TEXT,
   avatar_url TEXT,
+  bio TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   last_login TEXT
 );

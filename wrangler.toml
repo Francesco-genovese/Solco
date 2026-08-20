@@ -11,7 +11,7 @@ html_handling = "none"
 [[d1_databases]]
 binding = "DB"
 database_name = "solco-db"
-database_id = "481de1d4-96a9-4753-acf3-1342e20dd0c1"
+database_id = "INCOLLA-QUI-IL-TUO-DATABASE-ID"
 
 # Variabile opzionale: token Discogs per il riconoscimento automatico
 # di codice a barre / matrice (vedi README.md, sezione "Discogs").
