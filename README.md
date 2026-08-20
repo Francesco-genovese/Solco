@@ -1,1 +1,2 @@
 # Solco
+web app per catalogare la propria collezione di vinili. Si scansiona il codice a barre sul retro della copertina o la matrice incisa sull'etichetta, il disco viene identificato per pressing, etichetta e anno, e resta in libreria con la sua condizione Goldmine e il valore di mercato aggiornato. Sei schermate: onboarding, scansione e scheda disco su mobile; libreria a griglia di copertine e statistiche della collezione su desktop.
