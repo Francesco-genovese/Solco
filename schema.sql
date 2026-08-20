@@ -70,7 +70,9 @@ CREATE TABLE IF NOT EXISTS album (
   value_low REAL,
   value_high REAL,
   notes TEXT,
-  cover_color TEXT,                              -- colore segnaposto copertina (nessuna immagine reale)
+  cover_color TEXT,                              -- colore segnaposto copertina (usato solo se manca cover_url)
+  cover_url TEXT,                                 -- copertina vera: URL Discogs oppure foto propria (data URL)
+  is_favorite INTEGER NOT NULL DEFAULT 0,         -- disco tra i preferiti, mostrato sul profilo
   added_by TEXT,
   added_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

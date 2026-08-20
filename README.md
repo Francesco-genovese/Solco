@@ -32,22 +32,32 @@ persone — lo aprono su `/register.html?invite=CODICE`.
 
 ## 6. Se avevi già installato Solco prima d'ora — migrazione
 
-Questa versione aggiunge profilo (foto e bio) e la vista "Amici" con le collezioni
-personali. Serve una colonna in più che `schema.sql` da sola non aggiunge a un database
-già esistente (perché `CREATE TABLE IF NOT EXISTS` non tocca le tabelle già create).
+Questa versione aggiunge profilo (foto e bio), copertine vere, preferiti e il feed
+attività tra amici. Servono tre colonne in più che `schema.sql` da sola non aggiunge a
+un database già esistente (perché `CREATE TABLE IF NOT EXISTS` non tocca le tabelle già
+create).
 
-Vai su D1 → il tuo database → Console → esegui **solo** questa riga, una volta sola:
+Vai su D1 → il tuo database → Console → esegui queste righe **una volta sola**
+(se non le avevi già eseguite in un giro precedente):
 
 ```sql
 ALTER TABLE users ADD COLUMN bio TEXT;
+ALTER TABLE album ADD COLUMN cover_url TEXT;
+ALTER TABLE album ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;
 ```
 
-Se per sbaglio la esegui due volte, l'unico effetto è un errore "duplicate column
-name" — innocuo, la colonna c'è già.
+Se una riga dà errore "duplicate column name", vuol dire che l'avevi già eseguita:
+innocuo, salta solo quella e vai avanti con le altre.
 
-Da questa versione in poi, ogni persona vede solo i dischi che ha aggiunto lei: la
-sezione "Amici" (nuova voce nella barra in basso) mostra gli altri account con la loro
-collezione, in sola lettura.
+Da questa versione: ogni persona vede solo i dischi che ha aggiunto lei; la sezione
+"Amici" mostra gli altri account, la loro collezione, i preferiti e un feed di cosa
+hanno aggiunto di recente.
+
+**Nota sulla gestione utenti**: sospendere un account o promuovere qualcuno ad
+Amministratore non si fa più (e non si è mai fatto) da un pannello nell'app — si fa
+direttamente da Cloudflare: D1 → il tuo database → **Esplora i dati** → tabella
+`users`, modificando `status` o `role` sulla riga giusta. È il modo più diretto,
+senza dover costruire e mantenere un'interfaccia apposta per un'azione così rara.
 
 ## 7. Discogs (riconoscimento automatico) — facoltativo
 
@@ -56,13 +66,16 @@ se non trova nulla ti propone di compilare la scheda a mano.
 
 Per attivare il riconoscimento automatico:
 
-1. Crea un account su [discogs.com](https://www.discogs.com) se non ce l'hai già.
+1. Crea un account su [discogs.com](https://www.discogs.com) se non ce l'hai già — **è gratis**, così come generare il token: nessun piano a pagamento richiesto.
 2. Vai su **Impostazioni → Sviluppo** e genera un **Personal Access Token**.
 3. Da terminale, nella cartella del progetto:
    ```
    npx wrangler secret put DISCOGS_TOKEN
    ```
    e incolla il token quando richiesto.
+
+Il limite è di circa 60 richieste al minuto per token — ampiamente sufficiente per un
+uso personale (una scansione = una o due chiamate).
 
 Due cose da sapere:
 - Il **numero di matrice** (quello inciso vicino all'etichetta) non è cercabile in modo
@@ -93,8 +106,10 @@ SQL sempre manuali) si applicano anche a Solco.
 
 Per restare essenziali, alcune cose sono ridotte all'osso e possono essere estese in
 seguito, chiedendo alla chat di lavorarci sopra:
-- Le copertine sono blocchi di colore, non immagini reali (come nel concept originale).
-- Nessun caricamento foto della copertina/etichetta.
+- Le copertine arrivano da Discogs quando il disco viene riconosciuto in scansione, o
+  puoi scattare/caricare una foto tua (in scansione, sul profilo o modificando un disco
+  già in libreria). Se manca entrambe, resta un segnaposto con il motivo del logo.
+- Nessun caricamento foto della copertina/etichetta separato dalla copertina principale.
 - Il grafico "valore nel tempo" è calcolato dalla data di aggiunta alla libreria, non da
   uno storico di rivalutazioni.
 - La foto profilo viene ridimensionata a 320×320 nel telefono prima dell'invio e salvata

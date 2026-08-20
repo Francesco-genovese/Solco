@@ -21,32 +21,72 @@
   <div class="topbar">
     <a href="/index.html" class="back-link">← Libreria</a>
   </div>
-  <h1 style="font-size:28px">Il tuo profilo</h1>
 
   <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
-    <button id="avatar-btn" style="width:104px;height:104px;border:none;padding:0;background:var(--color-neutral-200);position:relative;overflow:hidden" aria-label="Cambia foto">
+    <button id="avatar-btn" style="width:96px;height:96px;border:none;padding:0;background:var(--color-neutral-200);position:relative;overflow:hidden" aria-label="Cambia foto">
       <img id="avatar-preview" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
-      <span id="avatar-placeholder" style="font-family:var(--font-heading);font-weight:800;font-size:34px;color:var(--color-neutral-700);display:flex;align-items:center;justify-content:center;width:100%;height:100%">?</span>
-      <div style="position:absolute;left:0;right:0;bottom:0;background:rgba(28,26,25,.72);color:#fff;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:5px 0;text-align:center">Cambia</div>
+      <span id="avatar-placeholder" style="font-family:var(--font-heading);font-weight:800;font-size:30px;color:var(--color-neutral-700);display:flex;align-items:center;justify-content:center;width:100%;height:100%">?</span>
+      <div style="position:absolute;left:0;right:0;bottom:0;background:rgba(28,26,25,.72);color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:4px 0;text-align:center">Cambia</div>
     </button>
     <input type="file" id="avatar-input" accept="image/*" capture="environment" style="display:none">
+    <h1 style="font-size:22px" id="p-username">—</h1>
   </div>
 
-  <form id="profile-form" style="display:flex;flex-direction:column;gap:14px">
-    <div class="field">
-      <label>Nome utente</label>
-      <input class="input" id="p-username" disabled style="opacity:.6">
+  <div class="stat-row" id="stat-row" style="display:none">
+    <div class="stat"><div class="stat-label">Dischi</div><div class="stat-value" id="stat-count">—</div></div>
+    <div class="stat"><div class="stat-label">Valore</div><div class="stat-value" id="stat-value">—</div></div>
+  </div>
+
+  <div class="field">
+    <label>Bio</label>
+    <textarea class="input" id="p-bio" rows="3" maxlength="280" placeholder="Qualche parola su di te e sui tuoi gusti musicali…"></textarea>
+  </div>
+  <button class="btn btn-primary btn-block" id="save-profile-btn">Salva profilo</button>
+
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="font-size:16px">Album preferiti</h3>
+      <button class="btn btn-secondary" id="manage-favorites-btn">Gestisci</button>
     </div>
-    <div class="field">
-      <label>Bio</label>
-      <textarea class="input" id="p-bio" rows="3" maxlength="280" placeholder="Qualche parola su di te e sui tuoi gusti musicali…"></textarea>
+    <div id="favorites-grid" class="grid"></div>
+    <div id="favorites-empty" style="font-size:13px;color:var(--color-neutral-700);display:none">Non hai ancora scelto dei preferiti — sono la prima cosa che vedono i tuoi amici sul tuo profilo.</div>
+  </div>
+
+  <div class="settings-divider">
+    <h4>Impostazioni</h4>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <a href="/api/export" class="btn btn-secondary btn-block">Esporta collezione (CSV)</a>
+      <button class="btn btn-outline btn-block" id="open-delete-account-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Elimina account</button>
     </div>
-    <button class="btn btn-primary btn-block" type="submit" id="save-btn">Salva</button>
-  </form>
+  </div>
+</div>
+
+<!-- pannello: scegli i preferiti -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="favorites-sheet">
+  <div class="sheet-handle"></div>
+  <h3>Scegli i preferiti</h3>
+  <p style="font-size:13px;color:var(--color-neutral-700);margin-top:-8px">Tocca una copertina per aggiungerla o toglierla dai preferiti.</p>
+  <div id="favorites-picker" class="grid" style="max-height:50vh;overflow-y:auto"></div>
+</div>
+
+<!-- pannello: elimina account -->
+<div class="sheet" id="delete-account-sheet">
+  <div class="sheet-handle"></div>
+  <h3 style="color:var(--color-danger)">Elimina account</h3>
+  <p style="font-size:14px;line-height:1.5">Cancella per sempre la tua collezione, la lista dei desideri e l'account. Non si può annullare.</p>
+  <div class="field">
+    <label>Scrivi il tuo nome utente per confermare</label>
+    <input class="input" id="delete-confirm-input" autocomplete="off">
+  </div>
+  <button class="btn btn-danger btn-block" id="confirm-delete-account-btn" disabled>Elimina definitivamente</button>
+  <button class="btn btn-outline btn-block" id="cancel-delete-account-btn">Annulla</button>
 </div>
 
 <script src="/assets/app.js"></script>
 <script>
+  let me = null;
+  let myAlbums = [];
   let pendingAvatar = null;
 
   function setAvatarPreview(src) {
@@ -56,13 +96,54 @@
     else { img.style.display = 'none'; placeholder.style.display = 'flex'; }
   }
 
+  function renderFavorites() {
+    const favs = myAlbums.filter(a => a.is_favorite);
+    document.getElementById('favorites-grid').style.display = favs.length ? 'grid' : 'none';
+    document.getElementById('favorites-empty').style.display = favs.length ? 'none' : 'block';
+    document.getElementById('favorites-grid').innerHTML = favs.map(a => recordCardHtml(a)).join('');
+  }
+
+  function renderPicker() {
+    document.getElementById('favorites-picker').innerHTML = myAlbums.map(a => `
+      <button type="button" class="record-card fav-pick" data-id="${a.id}" style="border:none;background:none;padding:0;position:relative">
+        ${a.cover_url
+          ? `<div class="record-cover cover-media" style="padding:0"><img src="${a.cover_url}" alt=""></div>`
+          : `<div class="record-cover"><div style="position:absolute;inset:0;background:${coverColorFor(a)}"></div>${COVER_FALLBACK_SVG}<div class="cover-title" style="position:relative;color:#fff">${a.title}</div></div>`}
+        <span class="fav-star ${a.is_favorite ? 'active' : ''}" style="position:absolute;top:8px;right:8px;background:rgba(28,26,25,.4);width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:15px">★</span>
+        <div class="record-artist">${a.artist}</div>
+      </button>
+    `).join('');
+    document.querySelectorAll('.fav-pick').forEach(btn => btn.addEventListener('click', () => toggleFavorite(btn.dataset.id)));
+  }
+
+  async function toggleFavorite(id) {
+    const album = myAlbums.find(a => String(a.id) === String(id));
+    album.is_favorite = album.is_favorite ? 0 : 1;
+    haptic(HAPTIC.tap);
+    renderPicker();
+    renderFavorites();
+    try { await api('/api/album/' + id, { method: 'PATCH', body: JSON.stringify({ is_favorite: album.is_favorite }) }); }
+    catch (err) { toast(err.message); }
+  }
+
   async function init() {
-    const me = await loadCurrentUser();
+    me = await loadCurrentUser();
     if (!me) return;
-    document.getElementById('p-username').value = me.username;
+    document.getElementById('p-username').textContent = me.username;
     document.getElementById('p-bio').value = me.bio || '';
     setAvatarPreview(me.avatar_url || null);
     document.getElementById('avatar-placeholder').textContent = me.username[0].toUpperCase();
+
+    try {
+      const [albumData, statsData] = await Promise.all([api('/api/album'), api('/api/stats')]);
+      myAlbums = albumData.albums;
+      renderFavorites();
+      if (statsData.count > 0) {
+        document.getElementById('stat-row').style.display = 'flex';
+        document.getElementById('stat-count').textContent = statsData.count;
+        document.getElementById('stat-value').textContent = formatEuro(statsData.total_value);
+      }
+    } catch (err) { toast(err.message); }
   }
   init();
 
@@ -78,9 +159,8 @@
     } catch (err) { toast(err.message); }
   });
 
-  document.getElementById('profile-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('save-btn');
+  document.getElementById('save-profile-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-profile-btn');
     btn.disabled = true; btn.textContent = 'Salvataggio…';
     try {
       const body = { bio: document.getElementById('p-bio').value.trim() };
@@ -88,12 +168,25 @@
       await api('/api/me', { method: 'PATCH', body: JSON.stringify(body) });
       haptic(HAPTIC.success);
       toast('Profilo aggiornato');
-      setTimeout(() => location.href = '/index.html', 500);
-    } catch (err) {
-      haptic(HAPTIC.error);
-      toast(err.message);
-      btn.disabled = false; btn.textContent = 'Salva';
-    }
+    } catch (err) { haptic(HAPTIC.error); toast(err.message); }
+    btn.disabled = false; btn.textContent = 'Salva profilo';
+  });
+
+  document.getElementById('manage-favorites-btn').addEventListener('click', () => { renderPicker(); openSheet('favorites-sheet'); });
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('favorites-sheet'); closeSheet('delete-account-sheet'); });
+
+  document.getElementById('open-delete-account-btn').addEventListener('click', () => openSheet('delete-account-sheet'));
+  document.getElementById('cancel-delete-account-btn').addEventListener('click', () => closeSheet('delete-account-sheet'));
+  document.getElementById('delete-confirm-input').addEventListener('input', (e) => {
+    document.getElementById('confirm-delete-account-btn').disabled = e.target.value.trim() !== me.username;
+  });
+  document.getElementById('confirm-delete-account-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('confirm-delete-account-btn');
+    btn.disabled = true; btn.textContent = 'Eliminazione…';
+    try {
+      await api('/api/me', { method: 'DELETE' });
+      location.href = '/login.html';
+    } catch (err) { toast(err.message); btn.disabled = false; btn.textContent = 'Elimina definitivamente'; }
   });
 </script>
 </body>

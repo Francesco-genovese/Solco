@@ -20,6 +20,11 @@
 <div class="screen">
   <div class="topbar"><h1>Amici</h1></div>
 
+  <div id="activity-block" style="display:none">
+    <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:2px">Attività recente</div>
+    <div id="activity-feed"></div>
+  </div>
+
   <div id="friends-list" style="display:flex;flex-direction:column;gap:2px"></div>
   <div id="empty-state" class="empty-state" style="display:none">
     <h3>Sei solo qui, per ora</h3>
@@ -36,7 +41,33 @@
 
 <script src="/assets/app.js"></script>
 <script>
+  function timeAgo(iso) {
+    const diffMin = Math.round((Date.now() - new Date(iso + 'Z').getTime()) / 60000);
+    if (diffMin < 1) return 'adesso';
+    if (diffMin < 60) return diffMin + ' min fa';
+    const diffH = Math.round(diffMin / 60);
+    if (diffH < 24) return diffH + ' h fa';
+    const diffD = Math.round(diffH / 24);
+    if (diffD < 7) return diffD + ' g fa';
+    return new Date(iso + 'Z').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+  }
+
+  async function loadActivity() {
+    try {
+      const { activity } = await api('/api/activity');
+      if (activity.length === 0) return;
+      document.getElementById('activity-block').style.display = 'block';
+      document.getElementById('activity-feed').innerHTML = activity.slice(0, 8).map(a => `
+        <div class="activity-item">
+          <span style="flex:1"><strong>${a.actor}</strong> ${a.action}</span>
+          <span class="activity-time">${timeAgo(a.created_at)}</span>
+        </div>
+      `).join('');
+    } catch { /* non blocca il resto della pagina */ }
+  }
+
   async function init() {
+    loadActivity();
     try {
       const { friends } = await api('/api/friends');
       const list = document.getElementById('friends-list');

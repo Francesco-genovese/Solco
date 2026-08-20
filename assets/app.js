@@ -57,6 +57,44 @@ function formatEuro(n) {
   return '€ ' + Math.round(n).toLocaleString('it-IT');
 }
 function coverColorFor(album) { return album.cover_color || COVER_PALETTE[album.id % COVER_PALETTE.length]; }
+
+// --- copertina: foto vera se c'è, altrimenti un blocco di colore col motivo del logo ---
+const COVER_FALLBACK_SVG = `<svg class="cover-fallback-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <line x1="22" y1="78" x2="78" y2="22" stroke="#ffffff" stroke-width="2.4"/>
+  <circle cx="61" cy="39" r="7.5" fill="#ffffff"/>
+</svg>`;
+function coverMediaHtml(album) {
+  if (album.cover_url) return `<img src="${album.cover_url}" alt="">`;
+  return `<div style="position:absolute;inset:0;background:${coverColorFor(album)}"></div>${COVER_FALLBACK_SVG}`;
+}
+
+// --- card di un disco per le griglie (Libreria, Amici, Profilo) ---
+function recordCardHtml(a, href) {
+  href = href === undefined ? `/disco.html?id=${a.id}` : href;
+  const favBadge = a.is_favorite ? '<span class="fav-badge">★</span>' : '';
+  const cover = a.cover_url
+    ? `<div class="record-cover cover-media" style="padding:0">${favBadge}<img src="${a.cover_url}" alt=""></div>`
+    : `<div class="record-cover">${favBadge}<div style="position:absolute;inset:0;background:${coverColorFor(a)}"></div>${COVER_FALLBACK_SVG}<div class="cover-title" style="position:relative;color:#fff">${a.title}</div></div>`;
+  const tag = href ? 'a' : 'div';
+  return `<${tag} class="record-card"${href ? ` href="${href}"` : ''}>
+    ${cover}
+    <div class="record-artist">${a.artist}</div>
+    <div class="record-meta"><span>${a.condition_media}</span><span>${formatEuro(a.value_estimate)}</span></div>
+  </${tag}>`;
+}
+
+// --- riga di un disco per la vista lista ---
+function recordListRowHtml(a, href) {
+  href = href === undefined ? `/disco.html?id=${a.id}` : href;
+  return `<a class="list-row" href="${href}">
+    <div class="list-cover cover-media">${coverMediaHtml(a)}</div>
+    <div>
+      <div class="list-row-title">${a.title}${a.is_favorite ? ' ★' : ''}</div>
+      <div class="list-row-meta">${a.artist}</div>
+    </div>
+    <div class="list-row-right">${a.condition_media}<br>${formatEuro(a.value_estimate)}</div>
+  </a>`;
+}
 function debounce(fn, ms = 250) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
 
 // --- logout ---

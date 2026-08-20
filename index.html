@@ -34,7 +34,18 @@
 
   <div class="chip-row" id="chip-row"></div>
 
+  <div class="grid-controls">
+    <select class="input" id="sort-select">
+      <option value="added_desc">Aggiunti di recente</option>
+      <option value="artist">Artista, A-Z</option>
+      <option value="value_desc">Valore, decrescente</option>
+      <option value="condition">Condizione</option>
+    </select>
+    <button class="icon-btn" id="view-toggle" aria-label="Cambia vista">▤</button>
+  </div>
+
   <div id="grid" class="grid"></div>
+  <div id="list" style="display:none"></div>
   <div id="empty-state" class="empty-state" style="display:none">
     <h3>Nessun disco ancora</h3>
     <p>Tocca "Scansiona" per aggiungere il primo vinile alla libreria.</p>
@@ -72,6 +83,17 @@
 <script>
   let allAlbums = [];
   let activeChip = 'Tutti';
+  let viewMode = localStorage.getItem('solco_view') || 'grid';
+  let sortMode = localStorage.getItem('solco_sort') || 'added_desc';
+
+  function sortAlbums(list) {
+    const arr = [...list];
+    if (sortMode === 'artist') arr.sort((a, b) => a.artist.localeCompare(b.artist));
+    else if (sortMode === 'value_desc') arr.sort((a, b) => (b.value_estimate || 0) - (a.value_estimate || 0));
+    else if (sortMode === 'condition') arr.sort((a, b) => (CONDITION_CODES.indexOf(a.condition_media)) - (CONDITION_CODES.indexOf(b.condition_media)));
+    // added_desc: l'ordine arriva già così dal server
+    return arr;
+  }
 
   function renderGrid() {
     const q = document.getElementById('search-input').value.trim().toLowerCase();
@@ -80,22 +102,21 @@
     if (q) filtered = filtered.filter(a =>
       [a.artist, a.title, a.label].filter(Boolean).some(v => v.toLowerCase().includes(q))
     );
+    filtered = sortAlbums(filtered);
 
     const grid = document.getElementById('grid');
+    const list = document.getElementById('list');
     const empty = document.getElementById('empty-state');
-    if (allAlbums.length === 0) { grid.style.display = 'none'; empty.style.display = 'block'; return; }
+    if (allAlbums.length === 0) { grid.style.display = 'none'; list.style.display = 'none'; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    grid.style.display = 'grid';
 
-    grid.innerHTML = filtered.map(a => `
-      <a class="record-card" href="/disco.html?id=${a.id}">
-        <div class="record-cover" style="background:${coverColorFor(a)};color:#fff">
-          <div class="cover-title">${a.title}</div>
-        </div>
-        <div class="record-artist">${a.artist}</div>
-        <div class="record-meta"><span>${a.condition_media}</span><span>${formatEuro(a.value_estimate)}</span></div>
-      </a>
-    `).join('');
+    if (viewMode === 'list') {
+      grid.style.display = 'none'; list.style.display = 'flex'; list.style.flexDirection = 'column';
+      list.innerHTML = filtered.map(a => recordListRowHtml(a)).join('');
+    } else {
+      list.style.display = 'none'; grid.style.display = 'grid';
+      grid.innerHTML = filtered.map(a => recordCardHtml(a)).join('');
+    }
   }
 
   function renderChips() {
@@ -141,6 +162,21 @@
   document.getElementById('profile-btn').addEventListener('click', () => openSheet('profile-sheet'));
   document.getElementById('sheet-backdrop').addEventListener('click', () => closeSheet('profile-sheet'));
   document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+  document.getElementById('sort-select').value = sortMode;
+  document.getElementById('sort-select').addEventListener('change', (e) => {
+    sortMode = e.target.value;
+    localStorage.setItem('solco_sort', sortMode);
+    renderGrid();
+  });
+  document.getElementById('view-toggle').textContent = viewMode === 'list' ? '☰' : '▤';
+  document.getElementById('view-toggle').addEventListener('click', () => {
+    viewMode = viewMode === 'grid' ? 'list' : 'grid';
+    localStorage.setItem('solco_view', viewMode);
+    document.getElementById('view-toggle').textContent = viewMode === 'list' ? '☰' : '▤';
+    haptic(HAPTIC.tap);
+    renderGrid();
+  });
 </script>
 </body>
 </html>

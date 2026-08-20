@@ -35,10 +35,23 @@
     <div class="stat"><div class="stat-label">Valore</div><div class="stat-value" id="stat-value">—</div></div>
   </div>
 
-  <div id="grid" class="grid"></div>
-  <div id="empty-state" class="empty-state" style="display:none">
-    <h3>Ancora nessun disco</h3>
-    <p>Questa collezione è vuota, per ora.</p>
+  <div id="favorites-block" style="display:none">
+    <h3 style="font-size:16px;margin-bottom:10px">Preferiti</h3>
+    <div id="favorites-grid" class="grid"></div>
+  </div>
+
+  <div id="wishlist-block" style="display:none">
+    <h3 style="font-size:16px;margin-bottom:8px">Sta cercando</h3>
+    <div id="wishlist-list"></div>
+  </div>
+
+  <div>
+    <h3 style="font-size:16px;margin-bottom:10px">Collezione completa</h3>
+    <div id="grid" class="grid"></div>
+    <div id="empty-state" class="empty-state" style="display:none">
+      <h3>Ancora nessun disco</h3>
+      <p>Questa collezione è vuota, per ora.</p>
+    </div>
   </div>
 </div>
 
@@ -62,18 +75,23 @@
       document.getElementById('stat-count').textContent = data.albums.length;
       document.getElementById('stat-value').textContent = formatEuro(totalValue);
 
+      const favorites = data.albums.filter(a => a.is_favorite);
+      if (favorites.length > 0) {
+        document.getElementById('favorites-block').style.display = 'block';
+        document.getElementById('favorites-grid').innerHTML = favorites.map(a => recordCardHtml(a, null)).join('');
+      }
+
+      if (data.wishlist && data.wishlist.length > 0) {
+        document.getElementById('wishlist-block').style.display = 'block';
+        document.getElementById('wishlist-list').innerHTML = data.wishlist.map(w => `
+          <div class="detail-row"><span style="font-size:14px"><strong>${w.title}</strong> — ${w.artist}</span></div>
+        `).join('');
+      }
+
       if (data.albums.length === 0) {
         document.getElementById('empty-state').style.display = 'block';
       } else {
-        document.getElementById('grid').innerHTML = data.albums.map(a => `
-          <div class="record-card">
-            <div class="record-cover" style="background:${coverColorFor(a)};color:#fff">
-              <div class="cover-title">${a.title}</div>
-            </div>
-            <div class="record-artist">${a.artist}</div>
-            <div class="record-meta"><span>${a.condition_media}</span><span>${formatEuro(a.value_estimate)}</span></div>
-          </div>
-        `).join('');
+        document.getElementById('grid').innerHTML = data.albums.map(a => recordCardHtml(a, null)).join('');
       }
 
       document.getElementById('loading-msg').style.display = 'none';

@@ -73,6 +73,13 @@
     <span class="back-link" id="confirm-back">← Indietro</span>
   </div>
   <h1 style="font-size:26px">Aggiungi alla libreria</h1>
+
+  <div style="display:flex;gap:14px;align-items:center">
+    <div id="confirm-cover-preview" class="cover-media" style="width:76px;height:76px;flex:0 0 auto;background:var(--color-neutral-200)"></div>
+    <button type="button" class="btn btn-secondary" id="confirm-cover-btn">Cambia foto</button>
+    <input type="file" id="confirm-cover-input" accept="image/*" capture="environment" style="display:none">
+  </div>
+
   <form id="confirm-form" style="display:flex;flex-direction:column;gap:14px">
     <div class="field"><label>Artista</label><input class="input" id="f-artist" required></div>
     <div class="field"><label>Titolo</label><input class="input" id="f-title" required></div>
@@ -114,6 +121,7 @@
   let scanControls = null;
   let lastCandidates = [];
   let selectedDiscogsId = null;
+  let selectedCoverUrl = null;
 
   document.getElementById('mode-barcode').addEventListener('click', () => setMode('barcode'));
   document.getElementById('mode-matrix').addEventListener('click', () => setMode('matrix'));
@@ -200,6 +208,7 @@
   function openConfirm(prefill) {
     prefill = prefill || {};
     selectedDiscogsId = prefill.discogs_release_id || null;
+    selectedCoverUrl = prefill.thumb || null;
     document.getElementById('f-artist').value = prefill.artist || '';
     document.getElementById('f-title').value = prefill.title || '';
     document.getElementById('f-label').value = prefill.label || '';
@@ -207,9 +216,27 @@
     document.getElementById('f-genre').value = prefill.genre || '';
     document.getElementById('f-pressing').value = '';
     document.getElementById('f-value').value = '';
+    renderCoverPreview();
     showState('confirm-state');
     document.getElementById('f-artist').focus();
   }
+
+  function renderCoverPreview() {
+    const el = document.getElementById('confirm-cover-preview');
+    el.innerHTML = selectedCoverUrl ? `<img src="${selectedCoverUrl}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : COVER_FALLBACK_SVG;
+    el.style.position = 'relative';
+  }
+
+  document.getElementById('confirm-cover-btn').addEventListener('click', () => document.getElementById('confirm-cover-input').click());
+  document.getElementById('confirm-cover-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      selectedCoverUrl = await resizeImageToDataUrl(file, 480, 0.78);
+      renderCoverPreview();
+      haptic(HAPTIC.tap);
+    } catch (err) { toast(err.message); }
+  });
 
   document.getElementById('confirm-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -227,6 +254,7 @@
         condition_sleeve: document.getElementById('f-sleeve').value,
         value_estimate: parseFloat(document.getElementById('f-value').value) || null,
         discogs_release_id: selectedDiscogsId,
+        cover_url: selectedCoverUrl,
       };
       const result = await api('/api/album', { method: 'POST', body: JSON.stringify(payload) });
       haptic(HAPTIC.success);

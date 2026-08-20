@@ -212,6 +212,43 @@ async function handleApi(request, env, pathname, method) {
     return json({ ok: true });
   }
 
+  // elimina definitivamente il proprio account (collezione, wishlist, sessioni comprese)
+  if (pathname === '/api/me' && method === 'DELETE') {
+    if (sessionUser.role === 'Amministratore') {
+      const admins = await env.DB.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'Amministratore' AND status = 'ok'").first();
+      if (admins.c <= 1) return json({ error: 'sei l\'unico Amministratore: promuovine un altro prima di eliminarti (dalla Console D1, tabella users)' }, 400);
+    }
+    await env.DB.prepare('DELETE FROM album WHERE added_by = ?').bind(sessionUser.username).run();
+    await env.DB.prepare('DELETE FROM wishlist WHERE added_by = ?').bind(sessionUser.username).run();
+    await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(sessionUser.id).run();
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(sessionUser.id).run();
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    headers.append('Set-Cookie', sessionCookie('', 0));
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
+
+  // esporta la propria collezione in CSV
+  if (pathname === '/api/export' && method === 'GET') {
+    const { results } = await env.DB.prepare('SELECT * FROM album WHERE added_by = ? ORDER BY added_at').bind(sessionUser.username).all();
+    const cols = ['artist', 'title', 'label', 'catalog_number', 'year', 'genre', 'country', 'condition_media',
+      'condition_sleeve', 'pressing_note', 'value_estimate', 'notes', 'added_at'];
+    const esc = (v) => v === null || v === undefined ? '' : `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [cols.join(',')].concat(results.map(r => cols.map(c => esc(r[c])).join(','))).join('\n');
+    return new Response(csv, { headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="solco-${sessionUser.username}.csv"`,
+    } });
+  }
+
+  // --- feed attività (gli amici, cosa hanno aggiunto di recente) ---
+
+  if (pathname === '/api/activity' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      "SELECT actor, action, created_at FROM activity_log WHERE action != 'login effettuato' ORDER BY created_at DESC LIMIT 25"
+    ).all();
+    return json({ activity: results });
+  }
+
   // --- amici: altri membri della libreria privata e le loro collezioni ---
 
   if (pathname === '/api/friends' && method === 'GET') {
@@ -235,7 +272,8 @@ async function handleApi(request, env, pathname, method) {
     const user = await env.DB.prepare("SELECT username, avatar_url, bio, created_at FROM users WHERE username = ? AND status = 'ok'").bind(username).first();
     if (!user) return json({ error: 'non trovato' }, 404);
     const { results: albums } = await env.DB.prepare('SELECT * FROM album WHERE added_by = ? ORDER BY added_at DESC').bind(username).all();
-    return json({ user, albums });
+    const { results: wishlist } = await env.DB.prepare('SELECT artist, title, note FROM wishlist WHERE added_by = ? ORDER BY priority ASC, added_at DESC').bind(username).all();
+    return json({ user, albums, wishlist });
   }
 
   // --- amministrazione utenti / inviti (solo Amministratore) ---
@@ -289,17 +327,18 @@ async function handleApi(request, env, pathname, method) {
     if (!b || !b.artist || !b.title) return json({ error: 'artista e titolo sono obbligatori' }, 400);
     const palette = ['#201e1d', '#1440d8', '#8ba2ff', '#bab6b6', '#d7d3d3', '#0d1a45'];
     const coverColor = b.cover_color || palette[Math.floor(Math.random() * palette.length)];
+    if (b.cover_url && b.cover_url.length > 350000) return json({ error: 'immagine troppo grande' }, 400);
     const result = await env.DB.prepare(
       `INSERT INTO album (artist, title, label, catalog_number, year, genre, country, barcode, matrix_a, matrix_b,
         discogs_release_id, condition_media, condition_sleeve, pressing_note, value_estimate, value_low, value_high,
-        notes, cover_color, added_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        notes, cover_color, cover_url, added_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       b.artist, b.title, b.label || null, b.catalog_number || null, b.year || null, b.genre || null, b.country || null,
       b.barcode || null, b.matrix_a || null, b.matrix_b || null, b.discogs_release_id || null,
       b.condition_media || 'VG', b.condition_sleeve || null, b.pressing_note || null,
       b.value_estimate || null, b.value_low || null, b.value_high || null, b.notes || null,
-      coverColor, sessionUser.username
+      coverColor, b.cover_url || null, sessionUser.username
     ).run();
     await env.DB.prepare("INSERT INTO activity_log (actor, action) VALUES (?, ?)").bind(sessionUser.username, `ha aggiunto "${b.title}"`).run();
     return json({ ok: true, id: result.meta.last_row_id });
@@ -318,8 +357,9 @@ async function handleApi(request, env, pathname, method) {
       if (!owner) return json({ error: 'non trovato' }, 404);
       if (owner.added_by !== sessionUser.username) return json({ error: 'non è un disco tuo' }, 403);
       const b = await request.json().catch(() => ({}));
+      if (b.cover_url && b.cover_url.length > 350000) return json({ error: 'immagine troppo grande' }, 400);
       const fields = ['artist', 'title', 'label', 'catalog_number', 'year', 'genre', 'country', 'condition_media',
-        'condition_sleeve', 'pressing_note', 'value_estimate', 'value_low', 'value_high', 'notes'];
+        'condition_sleeve', 'pressing_note', 'value_estimate', 'value_low', 'value_high', 'notes', 'cover_url', 'is_favorite'];
       const sets = [], vals = [];
       for (const f of fields) if (f in b) { sets.push(`${f} = ?`); vals.push(b[f]); }
       if (sets.length === 0) return json({ error: 'niente da aggiornare' }, 400);
@@ -347,6 +387,7 @@ async function handleApi(request, env, pathname, method) {
     if (!b || !b.artist || !b.title) return json({ error: 'artista e titolo sono obbligatori' }, 400);
     const result = await env.DB.prepare('INSERT INTO wishlist (artist, title, note, priority, added_by) VALUES (?,?,?,?,?)')
       .bind(b.artist, b.title, b.note || null, b.priority || 2, sessionUser.username).run();
+    await env.DB.prepare("INSERT INTO activity_log (actor, action) VALUES (?, ?)").bind(sessionUser.username, `sta cercando "${b.title}"`).run();
     return json({ ok: true, id: result.meta.last_row_id });
   }
   const wishIdMatch = pathname.match(/^\/api\/wishlist\/(\d+)$/);

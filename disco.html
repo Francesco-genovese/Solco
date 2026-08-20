@@ -23,12 +23,14 @@
     <span id="disc-number" style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700)"></span>
   </div>
 
-  <div class="disc-cover" id="disc-cover">
-    <div class="disc-meta-top" id="disc-meta-top"></div>
-    <div>
-      <div class="disc-title" id="disc-title"></div>
-      <div class="disc-artist" id="disc-artist"></div>
-    </div>
+  <div class="disc-cover cover-media" id="disc-cover" style="position:relative;padding:0">
+    <button class="fav-star" id="fav-star" style="position:absolute;top:12px;right:12px;z-index:2;background:rgba(28,26,25,.35);width:34px;height:34px;display:flex;align-items:center;justify-content:center" aria-label="Preferito">★</button>
+  </div>
+
+  <div>
+    <h1 style="font-size:26px;line-height:1.05" id="disc-title"></h1>
+    <p style="font-size:14px;color:var(--color-neutral-700);margin-top:3px" id="disc-artist"></p>
+    <p style="font-size:12px;color:var(--color-neutral-700);margin-top:2px" id="disc-meta-top"></p>
   </div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap" id="disc-tags"></div>
@@ -47,19 +49,23 @@
     <p style="font-size:14px;line-height:1.5" id="d-notes"></p>
   </div>
 
-  <div style="display:flex;gap:10px;margin-top:6px">
-    <button class="btn btn-primary" style="flex:1" id="edit-btn">Modifica condizione</button>
-    <button class="btn btn-secondary" id="more-btn">⋯</button>
-  </div>
+  <button class="btn btn-primary btn-block" id="edit-btn" style="margin-top:6px">Modifica</button>
 </div>
 
 <div class="center-msg" id="loading-msg"><div class="spinner"></div></div>
 
-<!-- pannello modifica -->
+<!-- pannello modifica (contiene anche, in fondo, la rimozione) -->
 <div class="sheet-backdrop" id="sheet-backdrop"></div>
 <div class="sheet" id="edit-sheet">
   <div class="sheet-handle"></div>
   <h3>Modifica</h3>
+
+  <div class="field">
+    <label>Cambia copertina</label>
+    <button type="button" class="btn btn-secondary btn-block" id="cover-btn">Scatta o scegli una foto</button>
+    <input type="file" id="cover-input" accept="image/*" capture="environment" style="display:none">
+  </div>
+
   <div style="display:flex;gap:10px">
     <div class="field" style="flex:1">
       <label>Condizione disco</label>
@@ -74,19 +80,18 @@
   <div class="field"><label>Valore stimato</label><input class="input" id="e-value" inputmode="decimal"></div>
   <div class="field"><label>Note</label><textarea class="input" id="e-notes" rows="3"></textarea></div>
   <button class="btn btn-primary btn-block" id="save-edit-btn">Salva</button>
-</div>
 
-<!-- pannello azioni secondarie -->
-<div class="sheet" id="more-sheet">
-  <div class="sheet-handle"></div>
-  <h3>Altre azioni</h3>
-  <button class="btn btn-danger btn-block" id="delete-btn">Rimuovi dalla libreria</button>
+  <div class="settings-divider">
+    <button class="btn btn-outline btn-block" id="delete-btn" style="color:var(--color-danger);border-color:var(--color-danger)">Rimuovi dalla libreria</button>
+  </div>
 </div>
 
 <script src="/assets/app.js"></script>
 <script>
   const id = new URLSearchParams(location.search).get('id');
   let album = null;
+  let pendingCover = null;
+  let deleteArmed = false;
 
   CONDITION_CODES.forEach(c => {
     const label = `${c} — ${CONDITION_LABELS[c]}`;
@@ -96,7 +101,12 @@
 
   function render() {
     document.getElementById('disc-number').textContent = 'Nº ' + String(album.id).padStart(4, '0');
-    document.getElementById('disc-cover').style.background = coverColorFor(album);
+    document.getElementById('disc-cover').innerHTML =
+      `<button class="fav-star" id="fav-star" style="position:absolute;top:12px;right:12px;z-index:2;background:rgba(28,26,25,.35);width:34px;height:34px;display:flex;align-items:center;justify-content:center" aria-label="Preferito">★</button>` +
+      coverMediaHtml(album);
+    document.getElementById('fav-star').classList.toggle('active', !!album.is_favorite);
+    document.getElementById('fav-star').addEventListener('click', toggleFavorite);
+
     document.getElementById('disc-meta-top').textContent = [album.label, album.catalog_number, album.year].filter(Boolean).join(' · ');
     document.getElementById('disc-title').textContent = album.title;
     document.getElementById('disc-artist').textContent = album.artist;
@@ -116,13 +126,22 @@
     document.getElementById('d-matrix').textContent = album.matrix_a || '';
     document.getElementById('d-added').textContent = album.added_at ? new Date(album.added_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
-    if (album.notes) { document.getElementById('d-notes-wrap').style.display = 'block'; document.getElementById('d-notes').textContent = album.notes; }
+    document.getElementById('d-notes-wrap').style.display = album.notes ? 'block' : 'none';
+    if (album.notes) document.getElementById('d-notes').textContent = album.notes;
 
     document.getElementById('e-condition').value = album.condition_media;
     document.getElementById('e-sleeve').value = album.condition_sleeve || album.condition_media;
     document.getElementById('e-pressing').value = album.pressing_note || '';
     document.getElementById('e-value').value = album.value_estimate || '';
     document.getElementById('e-notes').value = album.notes || '';
+  }
+
+  async function toggleFavorite() {
+    album.is_favorite = album.is_favorite ? 0 : 1;
+    document.getElementById('fav-star').classList.toggle('active', !!album.is_favorite);
+    haptic(HAPTIC.tap);
+    try { await api('/api/album/' + id, { method: 'PATCH', body: JSON.stringify({ is_favorite: album.is_favorite }) }); }
+    catch (err) { toast(err.message); }
   }
 
   async function init() {
@@ -138,8 +157,18 @@
   init();
 
   document.getElementById('edit-btn').addEventListener('click', () => openSheet('edit-sheet'));
-  document.getElementById('more-btn').addEventListener('click', () => openSheet('more-sheet'));
-  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('edit-sheet'); closeSheet('more-sheet'); });
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('edit-sheet'); resetDeleteButton(); });
+
+  document.getElementById('cover-btn').addEventListener('click', () => document.getElementById('cover-input').click());
+  document.getElementById('cover-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      pendingCover = await resizeImageToDataUrl(file, 480, 0.78);
+      toast('Foto pronta, tocca Salva per confermare');
+      haptic(HAPTIC.tap);
+    } catch (err) { toast(err.message); }
+  });
 
   document.getElementById('save-edit-btn').addEventListener('click', async () => {
     // aggiornamento ottimistico: la scheda cambia subito, senza aspettare il server
@@ -150,26 +179,48 @@
       value_estimate: parseFloat(document.getElementById('e-value').value) || null,
       notes: document.getElementById('e-notes').value.trim() || null,
     };
+    if (pendingCover) patch.cover_url = pendingCover;
     Object.assign(album, patch);
     render();
     document.getElementById('content').classList.add('pop');
     setTimeout(() => document.getElementById('content').classList.remove('pop'), 300);
     closeSheet('edit-sheet');
     haptic(HAPTIC.success);
+    pendingCover = null;
     try {
       await api('/api/album/' + id, { method: 'PATCH', body: JSON.stringify(patch) });
       toast('Salvato');
     } catch (err) { toast('Non salvato: ' + err.message); }
   });
 
-  document.getElementById('delete-btn').addEventListener('click', async () => {
-    closeSheet('more-sheet');
+  // rimozione: primo tocco arma la conferma, secondo tocco entro qualche secondo esegue davvero
+  const deleteBtn = document.getElementById('delete-btn');
+  let deleteTimer = null;
+  function resetDeleteButton() {
+    deleteArmed = false;
+    clearTimeout(deleteTimer);
+    deleteBtn.textContent = 'Rimuovi dalla libreria';
+    deleteBtn.classList.remove('btn-danger');
+    deleteBtn.classList.add('btn-outline');
+  }
+  deleteBtn.addEventListener('click', async () => {
+    if (!deleteArmed) {
+      deleteArmed = true;
+      haptic(HAPTIC.tap);
+      deleteBtn.textContent = 'Tocca di nuovo per confermare';
+      deleteBtn.classList.remove('btn-outline');
+      deleteBtn.classList.add('btn-danger');
+      deleteTimer = setTimeout(resetDeleteButton, 4000);
+      return;
+    }
+    clearTimeout(deleteTimer);
+    closeSheet('edit-sheet');
     document.getElementById('content').classList.add('fading-out');
-    haptic(HAPTIC.tap);
+    haptic(HAPTIC.success);
     try {
       await api('/api/album/' + id, { method: 'DELETE' });
       location.href = '/index.html';
-    } catch (err) { toast(err.message); document.getElementById('content').classList.remove('fading-out'); }
+    } catch (err) { toast(err.message); document.getElementById('content').classList.remove('fading-out'); resetDeleteButton(); }
   });
 </script>
 </body>
