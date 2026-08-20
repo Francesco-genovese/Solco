@@ -97,6 +97,7 @@ async function discogsSearch(env, params) {
   url.searchParams.set('token', env.DISCOGS_TOKEN);
   for (const [k, v] of Object.entries(params)) if (v) url.searchParams.set(k, v);
   const res = await fetch(url, { headers: { 'User-Agent': 'SolcoApp/1.0 (+uso privato)' } });
+  if (res.status === 429) return { configured: true, candidates: [], rateLimited: true };
   if (!res.ok) return { configured: true, candidates: [] };
   const data = await res.json().catch(() => ({ results: [] }));
   const candidates = (data.results || []).slice(0, 6).map(r => {
@@ -317,8 +318,25 @@ async function handleApi(request, env, pathname, method) {
   if (pathname === '/api/lookup' && method === 'POST') {
     const body = await request.json().catch(() => null);
     if (!body || !body.value) return json({ error: 'valore mancante' }, 400);
-    const params = body.type === 'barcode' ? { barcode: body.value } : { q: body.value };
-    const result = await discogsSearch(env, params);
+    const value = body.value.trim();
+
+    let result;
+    if (body.type === 'barcode') {
+      result = await discogsSearch(env, { barcode: value });
+    } else {
+      // "matrice/n. catalogo" scritto a mano: proviamo prima come numero di catalogo
+      // (il modo in cui Discogs lo indicizza meglio), poi — se sembra in realtà un
+      // codice a barre digitato — come barcode, e solo come ultima spiaggia una
+      // ricerca generica. Non si tenta altro se siamo già in rate limit, per non
+      // sprecare le richieste rimaste.
+      result = await discogsSearch(env, { catno: value });
+      if (!result.rateLimited && result.candidates.length === 0 && /^\d{6,14}$/.test(value)) {
+        result = await discogsSearch(env, { barcode: value });
+      }
+      if (!result.rateLimited && result.candidates.length === 0) {
+        result = await discogsSearch(env, { q: value });
+      }
+    }
     return json(result);
   }
 

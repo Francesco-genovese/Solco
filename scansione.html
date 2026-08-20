@@ -116,9 +116,11 @@
     document.getElementById('f-condition').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
     document.getElementById('f-sleeve').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
   });
+  document.getElementById('f-condition').addEventListener('change', () => { if (selectedDiscogsId) fetchValueSuggestion(); });
 
   let mode = 'barcode';
   let scanControls = null;
+  let scanLocked = false;
   let lastCandidates = [];
   let selectedDiscogsId = null;
   let selectedCoverUrl = null;
@@ -134,16 +136,20 @@
     document.getElementById('matrix-entry').style.display = m === 'matrix' ? 'flex' : 'none';
     document.getElementById('scan-hint').textContent = m === 'barcode'
       ? 'Tieni il retro della copertina a 15 cm dalla fotocamera.'
-      : 'Il numero di matrice è inciso vicino all\'etichetta ed è spesso poco leggibile: inseriscilo a mano.';
+      : 'Numero di catalogo o codice a barre scritto a mano — utile se la fotocamera non legge bene l\'etichetta.';
     if (m === 'barcode') startBarcodeScan(); else stopBarcodeScan();
   }
 
   async function startBarcodeScan() {
+    scanLocked = false;
     if (typeof ZXingBrowser === 'undefined') { document.getElementById('scan-hint').textContent = 'Fotocamera non disponibile: usa l\'inserimento manuale.'; return; }
     try {
       const reader = new ZXingBrowser.BrowserMultiFormatReader();
       scanControls = await reader.decodeFromVideoDevice(undefined, 'video', (result) => {
-        if (result) onBarcodeFound(result.getText());
+        // la fotocamera continua a mandare fotogrammi anche mentre stiamo già
+        // gestendo il primo risultato: senza questo blocco, un solo disco poteva
+        // generare 2-3 ricerche identiche di fila e mangiarsi il limite di Discogs.
+        if (result && !scanLocked) { scanLocked = true; onBarcodeFound(result.getText()); }
       });
     } catch { document.getElementById('scan-hint').textContent = 'Fotocamera non disponibile: usa l\'inserimento manuale.'; }
   }
@@ -177,7 +183,11 @@
       const result = await api('/api/lookup', { method: 'POST', body: JSON.stringify({ type, value }) });
       lastCandidates = result.candidates || [];
       if (lastCandidates.length === 0) {
-        toast(result.configured ? 'Nessun risultato trovato' : 'Riconoscimento automatico non configurato');
+        if (result.rateLimited) {
+          toast('Troppe scansioni ravvicinate: aspetta una decina di secondi e riprova');
+        } else {
+          toast(result.configured ? 'Nessun risultato trovato' : 'Riconoscimento automatico non configurato');
+        }
         openConfirm(type === 'barcode' ? { barcode: value } : { matrix_a: value });
         return;
       }
@@ -216,9 +226,31 @@
     document.getElementById('f-genre').value = prefill.genre || '';
     document.getElementById('f-pressing').value = '';
     document.getElementById('f-value').value = '';
+    document.getElementById('f-value').placeholder = '€';
     renderCoverPreview();
     showState('confirm-state');
     document.getElementById('f-artist').focus();
+    if (selectedDiscogsId) fetchValueSuggestion();
+  }
+
+  async function fetchValueSuggestion() {
+    if (!selectedDiscogsId) return;
+    const valueField = document.getElementById('f-value');
+    valueField.placeholder = 'Cerco il valore su Discogs…';
+    try {
+      const result = await api('/api/valore', {
+        method: 'POST',
+        body: JSON.stringify({ discogs_release_id: selectedDiscogsId, condition_media: document.getElementById('f-condition').value }),
+      });
+      if (result && result.suggestion && result.suggestion.value_estimate) {
+        valueField.value = Math.round(result.suggestion.value_estimate);
+        valueField.placeholder = '€';
+        const cur = result.suggestion.currency;
+        toast(cur && cur !== 'EUR' ? `Valore suggerito: ${valueField.value} ${cur} (controlla il cambio)` : 'Valore suggerito da Discogs');
+      } else {
+        valueField.placeholder = 'Discogs non ha un prezzo per questa condizione — inseriscilo tu';
+      }
+    } catch { valueField.placeholder = '€'; }
   }
 
   function renderCoverPreview() {
