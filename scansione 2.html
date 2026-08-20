@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Solco — Scansiona</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#141312">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  var desktopOk = document.cookie.indexOf('desktop_ok=1') !== -1;
+  if (!desktopOk && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+
+<!-- STATO 1: scansione -->
+<div class="scan-wrap" id="scan-state">
+  <div class="scan-header">
+    <span style="font-family:var(--font-heading);font-weight:800;font-size:18px">Scansiona</span>
+    <a href="/index.html" style="color:#f3f2f2;opacity:.6;font-size:20px">✕</a>
+  </div>
+  <div class="scan-video-wrap">
+    <video id="video" playsinline autoplay muted></video>
+    <div class="scan-frame" id="scan-frame">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+    </div>
+  </div>
+  <div class="scan-footer">
+    <div class="scan-mode-toggle">
+      <button class="active" id="mode-barcode">Codice a barre</button>
+      <button id="mode-matrix">Matrice / n. catalogo</button>
+    </div>
+    <p class="scan-hint" id="scan-hint">Tieni il retro della copertina a 15 cm dalla fotocamera.</p>
+
+    <div id="matrix-entry" style="display:none;flex-direction:column;gap:12px">
+      <input class="input" id="matrix-input" placeholder="Es. PL 12522 A-1E" style="background:transparent;color:#fff;border-color:rgba(243,242,242,.35)">
+      <button class="btn btn-primary btn-block" id="matrix-search-btn">Cerca</button>
+    </div>
+
+    <div class="scan-status" id="scan-status" style="display:none">
+      <span>Lettura in corso</span>
+      <span id="scan-status-code" style="font-family:var(--font-heading);font-weight:800;color:var(--color-accent-300)"></span>
+    </div>
+    <button class="btn btn-outline btn-block" id="manual-entry-btn" style="color:#f3f2f2;border-color:rgba(243,242,242,.35)">Inserisci a mano, senza cercare</button>
+  </div>
+</div>
+
+<!-- STATO 2: caricamento -->
+<div class="scan-wrap" id="loading-state" style="display:none;align-items:center;justify-content:center">
+  <div class="spinner"></div>
+  <p style="margin-top:16px;font-size:14px;color:rgba(243,242,242,.75)">Cerco il disco…</p>
+</div>
+
+<!-- STATO 3: candidati -->
+<div class="screen screen--no-tabbar" id="candidates-state" style="display:none">
+  <div class="topbar">
+    <span class="back-link" id="candidates-back">← Indietro</span>
+  </div>
+  <h1 style="font-size:26px">Conferma il tuo esemplare</h1>
+  <p style="font-size:14px;color:var(--color-neutral-700)">Scegli la stampa giusta — pressing, etichetta e anno possono variare.</p>
+  <div id="candidates-list" style="display:flex;flex-direction:column;gap:10px"></div>
+  <button class="btn btn-secondary btn-block" id="none-of-these-btn">Nessuno di questi, inserisco a mano</button>
+</div>
+
+<!-- STATO 4: conferma / dettagli disco -->
+<div class="screen screen--no-tabbar" id="confirm-state" style="display:none">
+  <div class="topbar">
+    <span class="back-link" id="confirm-back">← Indietro</span>
+  </div>
+  <h1 style="font-size:26px">Aggiungi alla libreria</h1>
+
+  <div style="display:flex;gap:14px;align-items:center">
+    <div id="confirm-cover-preview" class="cover-media" style="width:76px;height:76px;flex:0 0 auto;background:var(--color-neutral-200)"></div>
+    <button type="button" class="btn btn-secondary" id="confirm-cover-btn">Cambia foto</button>
+    <input type="file" id="confirm-cover-input" accept="image/*" capture="environment" style="display:none">
+  </div>
+
+  <form id="confirm-form" style="display:flex;flex-direction:column;gap:14px">
+    <div class="field"><label>Artista</label><input class="input" id="f-artist" required></div>
+    <div class="field"><label>Titolo</label><input class="input" id="f-title" required></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1"><label>Etichetta</label><input class="input" id="f-label"></div>
+      <div class="field" style="width:100px"><label>Anno</label><input class="input" id="f-year" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label>Genere</label><input class="input" id="f-genre" placeholder="Rock, Jazz…"></div>
+    <div class="field"><label>Nota di stampa</label><input class="input" id="f-pressing" placeholder='Es. "1ª stampa IT"'></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1">
+        <label>Condizione disco (Goldmine)</label>
+        <select class="input" id="f-condition"></select>
+      </div>
+      <div class="field" style="flex:1">
+        <label>Condizione copertina</label>
+        <select class="input" id="f-sleeve"></select>
+      </div>
+    </div>
+    <div class="field"><label>Valore stimato (facoltativo)</label><input class="input" id="f-value" inputmode="decimal" placeholder="€"></div>
+    <button class="btn btn-primary btn-block" type="submit" id="save-btn" style="margin-top:8px">Aggiungi alla libreria</button>
+  </form>
+</div>
+
+<script src="/assets/app.js"></script>
+<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<script>
+  const states = ['scan-state', 'loading-state', 'candidates-state', 'confirm-state'];
+  function showState(id) { states.forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none'); }
+
+  // popola i menu a tendina condizione
+  CONDITION_CODES.forEach(c => {
+    const label = `${c} — ${CONDITION_LABELS[c]}`;
+    document.getElementById('f-condition').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
+    document.getElementById('f-sleeve').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
+  });
+  document.getElementById('f-condition').addEventListener('change', () => { if (selectedDiscogsId) fetchValueSuggestion(); });
+
+  let mode = 'barcode';
+  let scanControls = null;
+  let lastCandidates = [];
+  let selectedDiscogsId = null;
+  let selectedCoverUrl = null;
+
+  document.getElementById('mode-barcode').addEventListener('click', () => setMode('barcode'));
+  document.getElementById('mode-matrix').addEventListener('click', () => setMode('matrix'));
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById('mode-barcode').classList.toggle('active', m === 'barcode');
+    document.getElementById('mode-matrix').classList.toggle('active', m === 'matrix');
+    document.getElementById('scan-frame').style.display = m === 'barcode' ? '' : 'none';
+    document.getElementById('matrix-entry').style.display = m === 'matrix' ? 'flex' : 'none';
+    document.getElementById('scan-hint').textContent = m === 'barcode'
+      ? 'Tieni il retro della copertina a 15 cm dalla fotocamera.'
+      : 'Il numero di matrice è inciso vicino all\'etichetta ed è spesso poco leggibile: inseriscilo a mano.';
+    if (m === 'barcode') startBarcodeScan(); else stopBarcodeScan();
+  }
+
+  async function startBarcodeScan() {
+    if (typeof ZXingBrowser === 'undefined') { document.getElementById('scan-hint').textContent = 'Fotocamera non disponibile: usa l\'inserimento manuale.'; return; }
+    try {
+      const reader = new ZXingBrowser.BrowserMultiFormatReader();
+      scanControls = await reader.decodeFromVideoDevice(undefined, 'video', (result) => {
+        if (result) onBarcodeFound(result.getText());
+      });
+    } catch { document.getElementById('scan-hint').textContent = 'Fotocamera non disponibile: usa l\'inserimento manuale.'; }
+  }
+  function stopBarcodeScan() { try { scanControls && scanControls.stop(); } catch {} scanControls = null; }
+
+  async function onBarcodeFound(code) {
+    stopBarcodeScan();
+    haptic(HAPTIC.recognized);
+    document.getElementById('scan-frame').classList.add('found');
+    document.getElementById('scan-status').style.display = 'flex';
+    document.getElementById('scan-status-code').textContent = code;
+    await new Promise(r => setTimeout(r, 350)); // lascia vedere il feedback verde prima di cambiare schermata
+    runLookup('barcode', code);
+  }
+
+  document.getElementById('matrix-search-btn').addEventListener('click', () => {
+    const val = document.getElementById('matrix-input').value.trim();
+    if (!val) return;
+    haptic(HAPTIC.tap);
+    runLookup('matrix', val);
+  });
+
+  document.getElementById('manual-entry-btn').addEventListener('click', () => { stopBarcodeScan(); openConfirm(null); });
+  document.getElementById('none-of-these-btn').addEventListener('click', () => openConfirm(null));
+  document.getElementById('candidates-back').addEventListener('click', () => { showState('scan-state'); if (mode === 'barcode') startBarcodeScan(); });
+  document.getElementById('confirm-back').addEventListener('click', () => { history.back(); });
+
+  async function runLookup(type, value) {
+    showState('loading-state');
+    try {
+      const result = await api('/api/lookup', { method: 'POST', body: JSON.stringify({ type, value }) });
+      lastCandidates = result.candidates || [];
+      if (lastCandidates.length === 0) {
+        toast(result.configured ? 'Nessun risultato trovato' : 'Riconoscimento automatico non configurato');
+        openConfirm(type === 'barcode' ? { barcode: value } : { matrix_a: value });
+        return;
+      }
+      renderCandidates(type === 'barcode' ? value : null, type === 'matrix' ? value : null);
+    } catch (err) {
+      toast(err.message);
+      showState('scan-state');
+      if (mode === 'barcode') startBarcodeScan();
+    }
+  }
+
+  function renderCandidates(barcode, matrix) {
+    const list = document.getElementById('candidates-list');
+    list.innerHTML = lastCandidates.map((c, i) => `
+      <button class="btn btn-outline" data-i="${i}" style="justify-content:flex-start;text-align:left;min-height:64px;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 16px">
+        <span style="font-family:var(--font-heading);font-weight:800;font-size:15px">${c.artist || '—'} · ${c.title}</span>
+        <span style="font-size:12px;color:var(--color-neutral-700);font-weight:400">${[c.label, c.catalog_number, c.year, c.country].filter(Boolean).join(' · ')}</span>
+      </button>
+    `).join('');
+    list.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+      haptic(HAPTIC.tap);
+      const c = lastCandidates[btn.dataset.i];
+      openConfirm({ ...c, barcode, matrix_a: matrix });
+    }));
+    showState('candidates-state');
+  }
+
+  function openConfirm(prefill) {
+    prefill = prefill || {};
+    selectedDiscogsId = prefill.discogs_release_id || null;
+    selectedCoverUrl = prefill.thumb || null;
+    document.getElementById('f-artist').value = prefill.artist || '';
+    document.getElementById('f-title').value = prefill.title || '';
+    document.getElementById('f-label').value = prefill.label || '';
+    document.getElementById('f-year').value = prefill.year || '';
+    document.getElementById('f-genre').value = prefill.genre || '';
+    document.getElementById('f-pressing').value = '';
+    document.getElementById('f-value').value = '';
+    document.getElementById('f-value').placeholder = '€';
+    renderCoverPreview();
+    showState('confirm-state');
+    document.getElementById('f-artist').focus();
+    if (selectedDiscogsId) fetchValueSuggestion();
+  }
+
+  async function fetchValueSuggestion() {
+    if (!selectedDiscogsId) return;
+    const valueField = document.getElementById('f-value');
+    valueField.placeholder = 'Cerco il valore su Discogs…';
+    try {
+      const result = await api('/api/valore', {
+        method: 'POST',
+        body: JSON.stringify({ discogs_release_id: selectedDiscogsId, condition_media: document.getElementById('f-condition').value }),
+      });
+      if (result && result.suggestion && result.suggestion.value_estimate) {
+        valueField.value = Math.round(result.suggestion.value_estimate);
+        valueField.placeholder = '€';
+        const cur = result.suggestion.currency;
+        toast(cur && cur !== 'EUR' ? `Valore suggerito: ${valueField.value} ${cur} (controlla il cambio)` : 'Valore suggerito da Discogs');
+      } else {
+        valueField.placeholder = 'Discogs non ha un prezzo per questa condizione — inseriscilo tu';
+      }
+    } catch { valueField.placeholder = '€'; }
+  }
+
+  function renderCoverPreview() {
+    const el = document.getElementById('confirm-cover-preview');
+    el.innerHTML = selectedCoverUrl ? `<img src="${selectedCoverUrl}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : COVER_FALLBACK_SVG;
+    el.style.position = 'relative';
+  }
+
+  document.getElementById('confirm-cover-btn').addEventListener('click', () => document.getElementById('confirm-cover-input').click());
+  document.getElementById('confirm-cover-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      selectedCoverUrl = await resizeImageToDataUrl(file, 480, 0.78);
+      renderCoverPreview();
+      haptic(HAPTIC.tap);
+    } catch (err) { toast(err.message); }
+  });
+
+  document.getElementById('confirm-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Salvataggio…';
+    try {
+      const payload = {
+        artist: document.getElementById('f-artist').value.trim(),
+        title: document.getElementById('f-title').value.trim(),
+        label: document.getElementById('f-label').value.trim() || null,
+        year: parseInt(document.getElementById('f-year').value) || null,
+        genre: document.getElementById('f-genre').value.trim() || null,
+        pressing_note: document.getElementById('f-pressing').value.trim() || null,
+        condition_media: document.getElementById('f-condition').value,
+        condition_sleeve: document.getElementById('f-sleeve').value,
+        value_estimate: parseFloat(document.getElementById('f-value').value) || null,
+        discogs_release_id: selectedDiscogsId,
+        cover_url: selectedCoverUrl,
+      };
+      const result = await api('/api/album', { method: 'POST', body: JSON.stringify(payload) });
+      haptic(HAPTIC.success);
+      toast('Aggiunto alla libreria');
+      location.href = '/disco.html?id=' + result.id;
+    } catch (err) {
+      haptic(HAPTIC.error);
+      toast(err.message);
+      btn.disabled = false; btn.textContent = 'Aggiungi alla libreria';
+    }
+  });
+
+  setMode('barcode');
+  window.addEventListener('pagehide', stopBarcodeScan);
+</script>
+</body>
+</html>
