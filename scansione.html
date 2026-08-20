@@ -182,11 +182,12 @@
     try {
       const result = await api('/api/lookup', { method: 'POST', body: JSON.stringify({ type, value }) });
       lastCandidates = result.candidates || [];
+      const quotaNote = (result.rateLimitTotal) ? ` (${result.rateLimitRemaining ?? '?'}/${result.rateLimitTotal} richieste Discogs rimaste)` : '';
       if (lastCandidates.length === 0) {
         if (result.rateLimited) {
-          toast('Troppe scansioni ravvicinate: aspetta una decina di secondi e riprova');
+          toast('Troppe scansioni ravvicinate: aspetta una decina di secondi e riprova' + quotaNote);
         } else {
-          toast(result.configured ? 'Nessun risultato trovato' : 'Riconoscimento automatico non configurato');
+          toast((result.configured ? 'Nessun risultato trovato' : 'Riconoscimento automatico non configurato') + quotaNote);
         }
         openConfirm(type === 'barcode' ? { barcode: value } : { matrix_a: value });
         return;

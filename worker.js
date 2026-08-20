@@ -97,8 +97,10 @@ async function discogsSearch(env, params) {
   url.searchParams.set('token', env.DISCOGS_TOKEN);
   for (const [k, v] of Object.entries(params)) if (v) url.searchParams.set(k, v);
   const res = await fetch(url, { headers: { 'User-Agent': 'SolcoApp/1.0 (+uso privato)' } });
-  if (res.status === 429) return { configured: true, candidates: [], rateLimited: true };
-  if (!res.ok) return { configured: true, candidates: [] };
+  const rateLimitRemaining = res.headers.get('X-Discogs-Ratelimit-Remaining');
+  const rateLimitTotal = res.headers.get('X-Discogs-Ratelimit');
+  if (res.status === 429) return { configured: true, candidates: [], rateLimited: true, rateLimitRemaining, rateLimitTotal };
+  if (!res.ok) return { configured: true, candidates: [], rateLimitRemaining, rateLimitTotal };
   const data = await res.json().catch(() => ({ results: [] }));
   const candidates = (data.results || []).slice(0, 6).map(r => {
     let artist = '', title = r.title || '';
@@ -114,7 +116,7 @@ async function discogsSearch(env, params) {
       thumb: r.thumb || null,
     };
   });
-  return { configured: true, candidates };
+  return { configured: true, candidates, rateLimitRemaining, rateLimitTotal };
 }
 
 async function discogsPriceSuggestion(env, releaseId, conditionMedia) {
