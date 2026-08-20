@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Installa l'app</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<div class="screen screen--no-tabbar" style="justify-content:center;min-height:100vh;text-align:center;gap:28px">
+  <div>
+    <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:10px">Solco</div>
+    <h1 style="font-size:36px;line-height:1.05" id="install-title">Va installata sulla Home</h1>
+    <p style="margin-top:14px;font-size:15px;line-height:1.5;color:var(--color-neutral-700)" id="install-body">
+      Solco è pensata per essere usata a schermo intero, come un'app vera — non aperta ogni volta dal browser.
+    </p>
+  </div>
+
+  <div id="ios-steps" style="text-align:left;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:10px;padding:20px;display:none">
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--color-divider)">
+      <span class="tag tag-accent">1</span>
+      <span style="font-size:14px;line-height:1.4">Tocca l'icona <strong>Condividi</strong> nella barra di Safari (il quadrato con la freccia verso l'alto)</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0">
+      <span class="tag tag-accent">2</span>
+      <span style="font-size:14px;line-height:1.4">Scegli <strong>Aggiungi a Home</strong>, poi apri Solco dall'icona sulla schermata Home</span>
+    </div>
+  </div>
+
+  <div id="android-steps" style="text-align:left;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:10px;padding:20px;display:none">
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--color-divider)">
+      <span class="tag tag-accent">1</span>
+      <span style="font-size:14px;line-height:1.4">Apri il menu <strong>⋮</strong> del browser</span>
+    </div>
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0">
+      <span class="tag tag-accent">2</span>
+      <span style="font-size:14px;line-height:1.4">Scegli <strong>Installa app</strong> (o "Aggiungi a schermata Home"), poi apri Solco dall'icona</span>
+    </div>
+  </div>
+
+  <div id="desktop-note" style="display:none;font-size:13px;color:var(--color-neutral-700);max-width:340px;margin:0 auto">
+    Apri questo indirizzo dal telefono per installarla — è pensata solo per l'uso mobile.
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  const ua = navigator.userAgent;
+  const isMobile = /iPhone|iPad|iPod|Android|Mobile/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  if (isStandalone) {
+    // già installata e aperta a schermo intero: non dovrebbe essere qui, torna alla libreria
+    location.replace('/');
+  } else if (!isMobile) {
+    document.getElementById('desktop-note').style.display = 'block';
+    document.getElementById('install-title').textContent = 'Solco è solo per telefono';
+  } else if (isIOS) {
+    document.getElementById('ios-steps').style.display = 'block';
+  } else {
+    document.getElementById('android-steps').style.display = 'block';
+  }
+</script>
+</body>
+</html>

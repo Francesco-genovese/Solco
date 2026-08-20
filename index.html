@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Libreria</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen">
+  <div class="topbar">
+    <h1>Libreria</h1>
+    <button class="icon-btn" id="profile-btn" aria-label="Profilo e impostazioni">☰</button>
+  </div>
+
+  <input class="input" id="search-input" placeholder="Cerca artista, titolo, etichetta…" style="font-size:15px">
+
+  <div id="stat-row" class="stat-row" style="display:none">
+    <div class="stat"><div class="stat-label">Dischi</div><div class="stat-value" id="stat-count">—</div></div>
+    <div class="stat"><div class="stat-label">Valore</div><div class="stat-value" id="stat-value">—</div></div>
+    <div class="stat"><div class="stat-label">Media</div><div class="stat-value" id="stat-avg">—</div></div>
+  </div>
+
+  <div class="chip-row" id="chip-row"></div>
+
+  <div id="grid" class="grid"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <h3>Nessun disco ancora</h3>
+    <p>Tocca "Scansiona" per aggiungere il primo vinile alla libreria.</p>
+  </div>
+</div>
+
+<button class="fab" id="scan-fab" aria-label="Scansiona">◎</button>
+
+<nav class="tabbar">
+  <button class="tab active"><span class="tab-icon">▤</span>Libreria</button>
+  <a class="tab" href="/statistiche.html"><span class="tab-icon">◆</span>Statistiche</a>
+  <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
+</nav>
+
+<!-- pannello profilo / impostazioni (dietro l'icona, non sempre in vista) -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="profile-sheet">
+  <div class="sheet-handle"></div>
+  <h3 id="profile-username">—</h3>
+  <div id="admin-link-wrap" style="display:none">
+    <a href="/admin.html" class="btn btn-secondary btn-block">Gestisci utenti e inviti</a>
+  </div>
+  <button class="btn btn-outline btn-block" id="logout-btn">Esci</button>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  let allAlbums = [];
+  let activeChip = 'Tutti';
+
+  function renderGrid() {
+    const q = document.getElementById('search-input').value.trim().toLowerCase();
+    let filtered = allAlbums;
+    if (activeChip !== 'Tutti') filtered = filtered.filter(a => a.genre === activeChip);
+    if (q) filtered = filtered.filter(a =>
+      [a.artist, a.title, a.label].filter(Boolean).some(v => v.toLowerCase().includes(q))
+    );
+
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty-state');
+    if (allAlbums.length === 0) { grid.style.display = 'none'; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    grid.style.display = 'grid';
+
+    grid.innerHTML = filtered.map(a => `
+      <a class="record-card" href="/disco.html?id=${a.id}">
+        <div class="record-cover" style="background:${coverColorFor(a)};color:#fff">
+          <div class="cover-title">${a.title}</div>
+        </div>
+        <div class="record-artist">${a.artist}</div>
+        <div class="record-meta"><span>${a.condition_media}</span><span>${formatEuro(a.value_estimate)}</span></div>
+      </a>
+    `).join('');
+  }
+
+  function renderChips() {
+    const genres = [...new Set(allAlbums.map(a => a.genre).filter(Boolean))];
+    const chips = ['Tutti', ...genres];
+    document.getElementById('chip-row').innerHTML = chips.map(g =>
+      `<button class="chip ${g === activeChip ? 'active' : ''}" data-genre="${g}">${g}</button>`
+    ).join('');
+    document.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => {
+      activeChip = el.dataset.genre;
+      haptic(HAPTIC.tap);
+      renderChips(); renderGrid();
+    }));
+  }
+
+  async function init() {
+    const me = await loadCurrentUser();
+    if (me) {
+      document.getElementById('profile-username').textContent = me.username;
+      if (me.role === 'Amministratore') document.getElementById('admin-link-wrap').style.display = 'block';
+    }
+    try {
+      const [albumData, statsData] = await Promise.all([api('/api/album'), api('/api/stats')]);
+      allAlbums = albumData.albums;
+      renderChips();
+      renderGrid();
+      if (statsData.count > 0) {
+        document.getElementById('stat-row').style.display = 'flex';
+        document.getElementById('stat-count').textContent = statsData.count;
+        document.getElementById('stat-value').textContent = formatEuro(statsData.total_value);
+        document.getElementById('stat-avg').textContent = statsData.avg_condition;
+      }
+    } catch (err) { toast(err.message); }
+  }
+  init();
+
+  document.getElementById('search-input').addEventListener('input', debounce(renderGrid, 150));
+  document.getElementById('scan-fab').addEventListener('click', () => { haptic(HAPTIC.tap); location.href = '/scansione.html'; });
+  document.getElementById('profile-btn').addEventListener('click', () => openSheet('profile-sheet'));
+  document.getElementById('sheet-backdrop').addEventListener('click', () => closeSheet('profile-sheet'));
+  document.getElementById('logout-btn').addEventListener('click', doLogout);
+</script>
+</body>
+</html>

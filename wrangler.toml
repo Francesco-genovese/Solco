@@ -1,0 +1,20 @@
+name = "solco"
+compatibility_date = "2026-08-05"
+main = "worker.js"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "solco-db"
+database_id = "INCOLLA-QUI-IL-TUO-DATABASE-ID"
+
+# Variabile opzionale: token Discogs per il riconoscimento automatico
+# di codice a barre / matrice (vedi README.md, sezione "Discogs").
+# NON va messo qui in chiaro: dopo il deploy esegui da terminale
+#   npx wrangler secret put DISCOGS_TOKEN
+# Senza questo secret l'app funziona comunque, in modalità inserimento manuale.

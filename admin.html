@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Utenti e inviti</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen screen--no-tabbar">
+  <div class="topbar">
+    <a href="/index.html" class="back-link">← Libreria</a>
+  </div>
+  <h1 style="font-size:28px">Utenti e inviti</h1>
+  <p style="font-size:14px;color:var(--color-neutral-700)">Solco è privata: solo chi ha un account può entrare. Genera un codice per aggiungere qualcuno.</p>
+
+  <button class="btn btn-primary btn-block" id="new-invite-btn">Genera codice invito</button>
+  <div id="invite-result" style="display:none;background:var(--color-accent-100);border-radius:8px;padding:16px;text-align:center">
+    <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent-700)">Codice</div>
+    <div style="font-family:var(--font-heading);font-weight:800;font-size:28px;letter-spacing:.06em;margin-top:6px" id="invite-code"></div>
+    <p style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Condividilo insieme al link: solco.app/register.html?invite=CODICE</p>
+  </div>
+
+  <div>
+    <h3 style="font-size:16px;margin-bottom:10px">Inviti recenti</h3>
+    <div id="invites-list"></div>
+  </div>
+
+  <div>
+    <h3 style="font-size:16px;margin-bottom:10px">Persone con accesso</h3>
+    <div id="users-list"></div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  async function loadUsers() {
+    const { users } = await api('/api/users');
+    document.getElementById('users-list').innerHTML = users.map(u => `
+      <div class="detail-row" style="align-items:center">
+        <div>
+          <div style="font-family:var(--font-heading);font-weight:800;font-size:14px">${u.username}${u.role === 'Amministratore' ? ' · Admin' : ''}</div>
+          <div style="font-size:12px;color:var(--color-neutral-700)">${u.email}</div>
+        </div>
+        <span class="tag ${u.status === 'sospeso' ? 'tag-outline' : 'tag-neutral'}">${u.status === 'sospeso' ? 'Sospeso' : 'Attivo'}</span>
+      </div>`).join('');
+  }
+  async function loadInvites() {
+    const { invites } = await api('/api/invites');
+    document.getElementById('invites-list').innerHTML = invites.length ? invites.map(i => `
+      <div class="detail-row" style="align-items:center">
+        <span style="font-family:var(--font-heading);font-weight:800;font-size:14px">${i.code}</span>
+        <span class="tag ${i.used_by ? 'tag-neutral' : 'tag-accent'}">${i.used_by ? 'Usato da ' + i.used_by : 'In attesa'}</span>
+      </div>`).join('') : '<p style="font-size:13px;color:var(--color-neutral-700)">Nessun invito generato ancora.</p>';
+  }
+
+  document.getElementById('new-invite-btn').addEventListener('click', async () => {
+    try {
+      const { code } = await api('/api/invites', { method: 'POST' });
+      haptic(HAPTIC.success);
+      document.getElementById('invite-code').textContent = code;
+      document.getElementById('invite-result').style.display = 'block';
+      loadInvites();
+    } catch (err) { toast(err.message); }
+  });
+
+  (async () => {
+    try { await Promise.all([loadUsers(), loadInvites()]); }
+    catch (err) { toast(err.message); }
+  })();
+</script>
+</body>
+</html>

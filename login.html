@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Accedi</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen screen--no-tabbar" style="justify-content:center;min-height:100vh;gap:32px">
+  <div>
+    <div style="font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-family:var(--font-heading);font-weight:800">Solco</div>
+    <h1 style="font-size:38px;margin-top:14px;line-height:1">Bentornato.</h1>
+  </div>
+
+  <form id="login-form" style="display:flex;flex-direction:column;gap:16px" novalidate>
+    <div class="field">
+      <label for="username">Nome utente</label>
+      <input class="input" id="username" name="username" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <p id="login-error" style="color:var(--color-danger);font-size:13px;display:none"></p>
+    <button class="btn btn-primary btn-block" type="submit" id="login-submit">Accedi</button>
+  </form>
+
+  <div style="text-align:center;font-size:13px;color:var(--color-neutral-700)">
+    Prima persona ad usare Solco? <a href="/register.html" id="bootstrap-link">Crea il primo account</a>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Accesso in corso…';
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Accesso non riuscito');
+      haptic(HAPTIC.success);
+      location.href = '/';
+    } catch (err) {
+      haptic(HAPTIC.error);
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Accedi';
+    }
+  });
+</script>
+</body>
+</html>

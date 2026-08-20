@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Da cercare</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen">
+  <div class="topbar">
+    <h1>Da cercare</h1>
+    <button class="icon-btn" id="add-btn" aria-label="Aggiungi">+</button>
+  </div>
+
+  <div id="wish-list" style="display:flex;flex-direction:column;gap:2px"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <h3>Niente in lista</h3>
+    <p>Aggiungi un disco che stai cercando in giro per i negozi.</p>
+  </div>
+</div>
+
+<nav class="tabbar">
+  <a class="tab" href="/index.html"><span class="tab-icon">▤</span>Libreria</a>
+  <a class="tab" href="/statistiche.html"><span class="tab-icon">◆</span>Statistiche</a>
+  <button class="tab active"><span class="tab-icon">☆</span>Da cercare</button>
+</nav>
+
+<!-- pannello aggiungi -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="add-sheet">
+  <div class="sheet-handle"></div>
+  <h3>Aggiungi alla lista</h3>
+  <form id="add-form" style="display:flex;flex-direction:column;gap:14px">
+    <div class="field"><label>Artista</label><input class="input" id="w-artist" required></div>
+    <div class="field"><label>Titolo</label><input class="input" id="w-title" required></div>
+    <div class="field"><label>Nota</label><input class="input" id="w-note" placeholder="Pressing specifico, negozio, prezzo massimo…"></div>
+    <button class="btn btn-primary btn-block" type="submit">Aggiungi</button>
+  </form>
+</div>
+
+<!-- pannello "trovato" -->
+<div class="sheet" id="found-sheet">
+  <div class="sheet-handle"></div>
+  <h3>L'hai trovato?</h3>
+  <p style="font-size:14px;color:var(--color-neutral-700)">Passa alla libreria con la condizione del tuo esemplare.</p>
+  <div class="field">
+    <label>Condizione disco</label>
+    <select class="input" id="found-condition"></select>
+  </div>
+  <div class="field"><label>Valore stimato (facoltativo)</label><input class="input" id="found-value" inputmode="decimal"></div>
+  <button class="btn btn-primary btn-block" id="confirm-found-btn">Sposta in libreria</button>
+  <button class="btn btn-outline btn-block" id="cancel-found-btn">Annulla</button>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  let items = [];
+  let activeFoundId = null;
+
+  CONDITION_CODES.forEach(c => {
+    document.getElementById('found-condition').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${c} — ${CONDITION_LABELS[c]}</option>`);
+  });
+
+  function render() {
+    const list = document.getElementById('wish-list');
+    const empty = document.getElementById('empty-state');
+    if (items.length === 0) { list.style.display = 'none'; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    list.style.display = 'flex';
+    list.innerHTML = items.map(w => `
+      <div class="detail-row" style="align-items:center" data-id="${w.id}">
+        <div>
+          <div style="font-family:var(--font-heading);font-weight:800;font-size:15px">${w.title}</div>
+          <div style="font-size:13px;color:var(--color-neutral-700)">${w.artist}${w.note ? ' · ' + w.note : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn found-btn" data-id="${w.id}" title="Trovato">✓</button>
+          <button class="icon-btn remove-btn" data-id="${w.id}" title="Rimuovi">✕</button>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('.found-btn').forEach(b => b.addEventListener('click', () => { activeFoundId = b.dataset.id; openSheet('found-sheet'); }));
+    list.querySelectorAll('.remove-btn').forEach(b => b.addEventListener('click', () => removeItem(b.dataset.id)));
+  }
+
+  async function load() {
+    try { items = (await api('/api/wishlist')).wishlist; render(); } catch (err) { toast(err.message); }
+  }
+  load();
+
+  document.getElementById('add-btn').addEventListener('click', () => openSheet('add-sheet'));
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('add-sheet'); closeSheet('found-sheet'); });
+  document.getElementById('cancel-found-btn').addEventListener('click', () => closeSheet('found-sheet'));
+
+  document.getElementById('add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = { artist: document.getElementById('w-artist').value.trim(), title: document.getElementById('w-title').value.trim(), note: document.getElementById('w-note').value.trim() || null };
+    if (!body.artist || !body.title) return;
+    try {
+      await api('/api/wishlist', { method: 'POST', body: JSON.stringify(body) });
+      haptic(HAPTIC.success);
+      closeSheet('add-sheet');
+      e.target.reset();
+      load();
+    } catch (err) { toast(err.message); }
+  });
+
+  async function removeItem(itemId) {
+    const row = document.querySelector(`[data-id="${itemId}"]`);
+    row?.classList.add('fading-out');
+    haptic(HAPTIC.tap);
+    try {
+      await api('/api/wishlist/' + itemId, { method: 'DELETE' });
+      items = items.filter(w => String(w.id) !== String(itemId));
+      setTimeout(render, 150);
+    } catch (err) { toast(err.message); row?.classList.remove('fading-out'); }
+  }
+
+  document.getElementById('confirm-found-btn').addEventListener('click', async () => {
+    const body = {
+      condition_media: document.getElementById('found-condition').value,
+      value_estimate: parseFloat(document.getElementById('found-value').value) || null,
+    };
+    try {
+      const result = await api(`/api/wishlist/${activeFoundId}/trovato`, { method: 'POST', body: JSON.stringify(body) });
+      haptic(HAPTIC.success);
+      toast('Spostato in libreria');
+      closeSheet('found-sheet');
+      location.href = '/disco.html?id=' + result.id;
+    } catch (err) { toast(err.message); }
+  });
+</script>
+</body>
+</html>

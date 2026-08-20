@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Scheda disco</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen screen--no-tabbar" id="content" style="display:none">
+  <div class="topbar">
+    <a href="/index.html" class="back-link">← Libreria</a>
+    <span id="disc-number" style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700)"></span>
+  </div>
+
+  <div class="disc-cover" id="disc-cover">
+    <div class="disc-meta-top" id="disc-meta-top"></div>
+    <div>
+      <div class="disc-title" id="disc-title"></div>
+      <div class="disc-artist" id="disc-artist"></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap" id="disc-tags"></div>
+
+  <div>
+    <div class="detail-row"><span class="detail-label">Valore di mercato</span><span class="detail-value-big" id="d-value"></span></div>
+    <div class="detail-row"><span class="detail-label">Condizione disco</span><span id="d-condition"></span></div>
+    <div class="detail-row"><span class="detail-label">Condizione copertina</span><span id="d-sleeve"></span></div>
+    <div class="detail-row" id="row-genre"><span class="detail-label">Genere</span><span id="d-genre"></span></div>
+    <div class="detail-row" id="row-matrix"><span class="detail-label">Matrice lato A</span><span id="d-matrix"></span></div>
+    <div class="detail-row"><span class="detail-label">In libreria dal</span><span id="d-added"></span></div>
+  </div>
+
+  <div id="d-notes-wrap" style="display:none">
+    <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:6px">Note</div>
+    <p style="font-size:14px;line-height:1.5" id="d-notes"></p>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:6px">
+    <button class="btn btn-primary" style="flex:1" id="edit-btn">Modifica condizione</button>
+    <button class="btn btn-secondary" id="more-btn">⋯</button>
+  </div>
+</div>
+
+<div class="center-msg" id="loading-msg"><div class="spinner"></div></div>
+
+<!-- pannello modifica -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="edit-sheet">
+  <div class="sheet-handle"></div>
+  <h3>Modifica</h3>
+  <div style="display:flex;gap:10px">
+    <div class="field" style="flex:1">
+      <label>Condizione disco</label>
+      <select class="input" id="e-condition"></select>
+    </div>
+    <div class="field" style="flex:1">
+      <label>Condizione copertina</label>
+      <select class="input" id="e-sleeve"></select>
+    </div>
+  </div>
+  <div class="field"><label>Nota di stampa</label><input class="input" id="e-pressing"></div>
+  <div class="field"><label>Valore stimato</label><input class="input" id="e-value" inputmode="decimal"></div>
+  <div class="field"><label>Note</label><textarea class="input" id="e-notes" rows="3"></textarea></div>
+  <button class="btn btn-primary btn-block" id="save-edit-btn">Salva</button>
+</div>
+
+<!-- pannello azioni secondarie -->
+<div class="sheet" id="more-sheet">
+  <div class="sheet-handle"></div>
+  <h3>Altre azioni</h3>
+  <button class="btn btn-danger btn-block" id="delete-btn">Rimuovi dalla libreria</button>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  const id = new URLSearchParams(location.search).get('id');
+  let album = null;
+
+  CONDITION_CODES.forEach(c => {
+    const label = `${c} — ${CONDITION_LABELS[c]}`;
+    document.getElementById('e-condition').insertAdjacentHTML('beforeend', `<option value="${c}">${label}</option>`);
+    document.getElementById('e-sleeve').insertAdjacentHTML('beforeend', `<option value="${c}">${label}</option>`);
+  });
+
+  function render() {
+    document.getElementById('disc-number').textContent = 'Nº ' + String(album.id).padStart(4, '0');
+    document.getElementById('disc-cover').style.background = coverColorFor(album);
+    document.getElementById('disc-meta-top').textContent = [album.label, album.catalog_number, album.year].filter(Boolean).join(' · ');
+    document.getElementById('disc-title').textContent = album.title;
+    document.getElementById('disc-artist').textContent = album.artist;
+
+    const tags = [`<span class="tag tag-accent">${album.condition_media}</span>`];
+    if (album.condition_sleeve) tags.push(`<span class="tag tag-neutral">Copertina ${album.condition_sleeve}</span>`);
+    if (album.pressing_note) tags.push(`<span class="tag tag-outline">${album.pressing_note}</span>`);
+    document.getElementById('disc-tags').innerHTML = tags.join('');
+
+    document.getElementById('d-value').textContent = formatEuro(album.value_estimate);
+    document.getElementById('d-condition').textContent = `${album.condition_media} — ${CONDITION_LABELS[album.condition_media] || ''}`;
+    document.getElementById('d-sleeve').textContent = album.condition_sleeve ? `${album.condition_sleeve} — ${CONDITION_LABELS[album.condition_sleeve] || ''}` : '—';
+
+    document.getElementById('row-genre').style.display = album.genre ? 'flex' : 'none';
+    document.getElementById('d-genre').textContent = album.genre || '';
+    document.getElementById('row-matrix').style.display = album.matrix_a ? 'flex' : 'none';
+    document.getElementById('d-matrix').textContent = album.matrix_a || '';
+    document.getElementById('d-added').textContent = album.added_at ? new Date(album.added_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+    if (album.notes) { document.getElementById('d-notes-wrap').style.display = 'block'; document.getElementById('d-notes').textContent = album.notes; }
+
+    document.getElementById('e-condition').value = album.condition_media;
+    document.getElementById('e-sleeve').value = album.condition_sleeve || album.condition_media;
+    document.getElementById('e-pressing').value = album.pressing_note || '';
+    document.getElementById('e-value').value = album.value_estimate || '';
+    document.getElementById('e-notes').value = album.notes || '';
+  }
+
+  async function init() {
+    if (!id) { location.href = '/index.html'; return; }
+    try {
+      const data = await api('/api/album/' + id);
+      album = data.album;
+      render();
+      document.getElementById('loading-msg').style.display = 'none';
+      document.getElementById('content').style.display = 'flex';
+    } catch (err) { toast(err.message); location.href = '/index.html'; }
+  }
+  init();
+
+  document.getElementById('edit-btn').addEventListener('click', () => openSheet('edit-sheet'));
+  document.getElementById('more-btn').addEventListener('click', () => openSheet('more-sheet'));
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('edit-sheet'); closeSheet('more-sheet'); });
+
+  document.getElementById('save-edit-btn').addEventListener('click', async () => {
+    // aggiornamento ottimistico: la scheda cambia subito, senza aspettare il server
+    const patch = {
+      condition_media: document.getElementById('e-condition').value,
+      condition_sleeve: document.getElementById('e-sleeve').value,
+      pressing_note: document.getElementById('e-pressing').value.trim() || null,
+      value_estimate: parseFloat(document.getElementById('e-value').value) || null,
+      notes: document.getElementById('e-notes').value.trim() || null,
+    };
+    Object.assign(album, patch);
+    render();
+    document.getElementById('content').classList.add('pop');
+    setTimeout(() => document.getElementById('content').classList.remove('pop'), 300);
+    closeSheet('edit-sheet');
+    haptic(HAPTIC.success);
+    try {
+      await api('/api/album/' + id, { method: 'PATCH', body: JSON.stringify(patch) });
+      toast('Salvato');
+    } catch (err) { toast('Non salvato: ' + err.message); }
+  });
+
+  document.getElementById('delete-btn').addEventListener('click', async () => {
+    closeSheet('more-sheet');
+    document.getElementById('content').classList.add('fading-out');
+    haptic(HAPTIC.tap);
+    try {
+      await api('/api/album/' + id, { method: 'DELETE' });
+      location.href = '/index.html';
+    } catch (err) { toast(err.message); document.getElementById('content').classList.remove('fading-out'); }
+  });
+</script>
+</body>
+</html>

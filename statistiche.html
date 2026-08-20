@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solco — Statistiche</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c1a19">
+<link rel="stylesheet" href="/assets/style.css">
+<script>
+  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    location.replace('/install.html');
+  }
+</script>
+</head>
+<body>
+<div class="screen">
+  <div class="topbar"><h1>Statistiche</h1></div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-label">Valore totale</div><div class="stat-value" id="s-value" style="font-size:26px">—</div></div>
+    <div class="stat"><div class="stat-label">Dischi</div><div class="stat-value" id="s-count">—</div></div>
+    <div class="stat"><div class="stat-label">Media</div><div class="stat-value" id="s-avg">—</div></div>
+  </div>
+
+  <div id="charts" style="display:flex;flex-direction:column;gap:28px"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <h3>Ancora niente da mostrare</h3>
+    <p>Le statistiche compaiono man mano che aggiungi dischi alla libreria.</p>
+  </div>
+</div>
+
+<nav class="tabbar">
+  <a class="tab" href="/index.html"><span class="tab-icon">▤</span>Libreria</a>
+  <button class="tab active"><span class="tab-icon">◆</span>Statistiche</button>
+  <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
+</nav>
+
+<script src="/assets/app.js"></script>
+<script>
+  const BUCKET_LABELS = { mint_nm: 'Mint / NM', vgplus: 'VG+', vg: 'VG', good: 'Good', fair_poor: 'Fair / Poor' };
+  const BUCKET_COLORS = { mint_nm: '#1440d8', vgplus: '#4467f5', vg: '#8ba2ff', good: '#bab6b6', fair_poor: '#d7d3d3' };
+
+  function lineChart(points) {
+    if (points.length < 2) return '<p style="font-size:13px;color:var(--color-neutral-700)">Servono almeno due dischi per il grafico.</p>';
+    const w = 340, h = 160;
+    const max = Math.max(...points.map(p => p.value), 1);
+    const step = w / (points.length - 1);
+    const coords = points.map((p, i) => [i * step, h - (p.value / max) * (h - 10) - 5]);
+    const poly = coords.map(c => c.join(',')).join(' ');
+    const area = `0,${h} ${poly} ${w},${h}`;
+    const first = points[0].date, last = points[points.length - 1].date;
+    return `
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:160px;display:block">
+        <line x1="0" y1="${h - 1}" x2="${w}" y2="${h - 1}" stroke="#201e1d" stroke-width="1.5"/>
+        <polygon points="${area}" fill="#1440d8" opacity="0.12"/>
+        <polyline points="${poly}" fill="none" stroke="#1440d8" stroke-width="2.5"/>
+        <circle cx="${coords[coords.length - 1][0]}" cy="${coords[coords.length - 1][1]}" r="4" fill="#1440d8"/>
+      </svg>
+      <div class="chart-axis-labels"><span>${fmtDate(first)}</span><span>${fmtDate(last)}</span></div>
+    `;
+  }
+  function fmtDate(iso) { const d = new Date(iso); return d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }); }
+
+  function decadeChart(decades) {
+    const keys = Object.keys(decades).map(Number).sort((a, b) => a - b);
+    if (keys.length === 0) return '<p style="font-size:13px;color:var(--color-neutral-700)">Nessun anno registrato ancora.</p>';
+    const max = Math.max(...keys.map(k => decades[k]));
+    const w = 340, h = 140, bw = w / keys.length - 8;
+    const bars = keys.map((k, i) => {
+      const bh = (decades[k] / max) * (h - 10);
+      return `<rect x="${i * (w / keys.length) + 4}" y="${h - bh}" width="${bw}" height="${bh}" fill="${k === Math.max(...keys) ? '#1440d8' : '#201e1d'}"/>`;
+    }).join('');
+    const labels = keys.map(k => `<span>'${String(k).slice(-2)}</span>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:140px;display:block"><line x1="0" y1="${h - 1}" x2="${w}" y2="${h - 1}" stroke="#201e1d" stroke-width="1.5"/>${bars}</svg>
+      <div class="chart-axis-labels">${labels}</div>`;
+  }
+
+  function qualityChart(buckets, count) {
+    const keys = Object.keys(BUCKET_LABELS);
+    const bar = keys.map(k => `<div style="width:${(buckets[k] / count * 100) || 0}%;background:${BUCKET_COLORS[k]}"></div>`).join('');
+    const legend = keys.filter(k => buckets[k] > 0).map(k => `
+      <div style="padding:10px 0;border-top:1px solid var(--color-divider);display:flex;justify-content:space-between">
+        <span style="font-family:var(--font-heading);font-weight:800;font-size:14px">${BUCKET_LABELS[k]}</span>
+        <span style="font-size:12px;color:var(--color-neutral-700)">${buckets[k]} dischi · ${Math.round(buckets[k] / count * 100)}%</span>
+      </div>`).join('');
+    return `<div class="quality-bar">${bar}</div>${legend}`;
+  }
+
+  async function init() {
+    try {
+      const s = await api('/api/stats');
+      if (s.count === 0) { document.getElementById('empty-state').style.display = 'block'; return; }
+      document.getElementById('s-value').textContent = formatEuro(s.total_value);
+      document.getElementById('s-count').textContent = s.count;
+      document.getElementById('s-avg').textContent = s.avg_condition;
+
+      document.getElementById('charts').innerHTML = `
+        <div class="chart-block">
+          <h4>Valore della collezione</h4>
+          <div class="chart-caption">Cumulativo, in ordine di aggiunta</div>
+          ${lineChart(s.value_over_time)}
+        </div>
+        <div class="chart-block">
+          <h4>Dischi per decennio</h4>
+          <div class="chart-caption">Anno di stampa dell'esemplare</div>
+          ${decadeChart(s.decades)}
+        </div>
+        <div class="chart-block">
+          <h4>Qualità della collezione</h4>
+          <div class="chart-caption">Scala Goldmine, su ${s.count} dischi</div>
+          ${qualityChart(s.buckets, s.count)}
+        </div>
+      `;
+    } catch (err) { toast(err.message); }
+  }
+  init();
+</script>
+</body>
+</html>
