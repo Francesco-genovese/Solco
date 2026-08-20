@@ -10,7 +10,8 @@
 <meta name="theme-color" content="#1c1a19">
 <link rel="stylesheet" href="/assets/style.css">
 <script>
-  if (!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+  var desktopOk = document.cookie.indexOf('desktop_ok=1') !== -1;
+  if (!desktopOk && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
     location.replace('/install.html');
   }
 </script>

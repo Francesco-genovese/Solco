@@ -43,8 +43,11 @@
     </div>
   </div>
 
-  <div id="desktop-note" style="display:none;font-size:13px;color:var(--color-neutral-700);max-width:340px;margin:0 auto">
-    Apri questo indirizzo dal telefono per installarla — è pensata solo per l'uso mobile.
+  <div id="desktop-note" style="display:none;flex-direction:column;gap:16px;align-items:center;max-width:340px;margin:0 auto">
+    <p style="font-size:13px;color:var(--color-neutral-700);margin:0">
+      Apri questo indirizzo dal telefono per installarla come app — è pensata soprattutto per l'uso mobile.
+    </p>
+    <button class="btn btn-outline" id="continue-anyway-btn">Continua comunque da qui</button>
   </div>
 </div>
 
@@ -55,12 +58,18 @@
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
-  if (isStandalone) {
-    // già installata e aperta a schermo intero: non dovrebbe essere qui, torna alla libreria
+  const desktopOk = document.cookie.indexOf('desktop_ok=1') !== -1;
+
+  if (isStandalone || (desktopOk && !isMobile)) {
+    // già installata (o già scelto di continuare da desktop): torna alla libreria
     location.replace('/');
   } else if (!isMobile) {
-    document.getElementById('desktop-note').style.display = 'block';
-    document.getElementById('install-title').textContent = 'Solco è solo per telefono';
+    document.getElementById('desktop-note').style.display = 'flex';
+    document.getElementById('install-title').textContent = 'Pensata soprattutto per il telefono';
+    document.getElementById('continue-anyway-btn').addEventListener('click', () => {
+      document.cookie = 'desktop_ok=1; path=/; max-age=' + 60 * 60 * 24 * 180 + '; SameSite=Lax';
+      location.href = '/';
+    });
   } else if (isIOS) {
     document.getElementById('ios-steps').style.display = 'block';
   } else {

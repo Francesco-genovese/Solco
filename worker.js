@@ -31,6 +31,12 @@ function isMobileUA(request) {
   return /iPhone|iPad|iPod|Android|Mobile/i.test(ua);
 }
 
+// chi ha premuto "Continua comunque" su install.html porta questo cookie:
+// da desktop l'avviso resta, ma non blocca più chi vuole entrare comunque.
+function hasDesktopOverride(request) {
+  return getCookie(request, 'desktop_ok') === '1';
+}
+
 // --- utilità condivise (dal tutorial) ---
 
 function getCookie(request, name) {
@@ -384,8 +390,9 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // App pensata solo per telefono, installata: da desktop mostriamo sempre install.html
-    if (!isMobileUA(request) && pathname !== '/install.html') {
+    // App pensata solo per telefono, installata: da desktop mostriamo l'avviso,
+    // ma chi ha già scelto "Continua comunque" (cookie desktop_ok) passa oltre.
+    if (!isMobileUA(request) && !hasDesktopOverride(request) && pathname !== '/install.html') {
       return env.ASSETS.fetch(new Request(new URL('/install.html', request.url), request));
     }
 
