@@ -116,7 +116,7 @@
     document.getElementById('f-condition').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
     document.getElementById('f-sleeve').insertAdjacentHTML('beforeend', `<option value="${c}" ${c === 'VG' ? 'selected' : ''}>${label}</option>`);
   });
-  document.getElementById('f-condition').addEventListener('change', () => { if (selectedDiscogsId) fetchValueSuggestion(); });
+  document.getElementById('f-condition').addEventListener('change', debounce(() => { if (selectedDiscogsId) fetchValueSuggestion(); }, 600));
 
   let mode = 'barcode';
   let scanControls = null;

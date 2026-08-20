@@ -344,15 +344,11 @@ async function handleApi(request, env, pathname, method) {
     if (body.type === 'barcode') {
       result = await discogsSearch(env, { barcode: value });
     } else {
-      // "matrice/n. catalogo" scritto a mano: proviamo prima come numero di catalogo
-      // (il modo in cui Discogs lo indicizza meglio), poi — se sembra in realtà un
-      // codice a barre digitato — come barcode, e solo come ultima spiaggia una
-      // ricerca generica. Non si tenta altro se siamo già in rate limit, per non
-      // sprecare le richieste rimaste.
-      result = await discogsSearch(env, { catno: value });
-      if (!result.rateLimited && result.candidates.length === 0 && /^\d{6,14}$/.test(value)) {
-        result = await discogsSearch(env, { barcode: value });
-      }
+      // "matrice/n. catalogo" scritto a mano: decidiamo SUBITO la strategia giusta
+      // in base a cosa hai scritto, invece di provarle tutte in sequenza — così
+      // in genere basta una sola chiamata a Discogs, al massimo due.
+      const looksLikeBarcode = /^\d{6,14}$/.test(value);
+      result = await discogsSearch(env, looksLikeBarcode ? { barcode: value } : { catno: value });
       if (!result.rateLimited && result.candidates.length === 0) {
         result = await discogsSearch(env, { q: value });
       }
