@@ -41,7 +41,14 @@
       <option value="value_desc">Valore, decrescente</option>
       <option value="condition">Condizione</option>
     </select>
-    <button class="icon-btn" id="view-toggle" aria-label="Cambia vista">▤</button>
+    <div class="seg-toggle" role="group" aria-label="Vista">
+      <button type="button" id="view-grid-btn" aria-label="Vista a griglia">
+        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/><rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/></svg>
+      </button>
+      <button type="button" id="view-list-btn" aria-label="Vista a lista">
+        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="3"/><rect x="1" y="7" width="14" height="3"/><rect x="1" y="12" width="14" height="3"/></svg>
+      </button>
+    </div>
   </div>
 
   <div id="grid" class="grid"></div>
@@ -133,15 +140,7 @@
   }
 
   async function init() {
-    const me = await loadCurrentUser();
-    if (me) {
-      document.getElementById('profile-username').textContent = me.username;
-      document.getElementById('profile-bio').textContent = me.bio || '';
-      document.getElementById('profile-avatar').innerHTML = me.avatar_url
-        ? `<img src="${me.avatar_url}" style="width:100%;height:100%;object-fit:cover">`
-        : `<span style="font-family:var(--font-heading);font-weight:800;color:var(--color-neutral-700)">${me.username[0].toUpperCase()}</span>`;
-      if (me.role === 'Amministratore') document.getElementById('admin-link-wrap').style.display = 'block';
-    }
+    await initProfileMenu();
     try {
       const [albumData, statsData] = await Promise.all([api('/api/album'), api('/api/stats')]);
       allAlbums = albumData.albums;
@@ -159,9 +158,6 @@
 
   document.getElementById('search-input').addEventListener('input', debounce(renderGrid, 150));
   document.getElementById('scan-fab').addEventListener('click', () => { haptic(HAPTIC.tap); location.href = '/scansione.html'; });
-  document.getElementById('profile-btn').addEventListener('click', () => openSheet('profile-sheet'));
-  document.getElementById('sheet-backdrop').addEventListener('click', () => closeSheet('profile-sheet'));
-  document.getElementById('logout-btn').addEventListener('click', doLogout);
 
   document.getElementById('sort-select').value = sortMode;
   document.getElementById('sort-select').addEventListener('change', (e) => {
@@ -169,14 +165,16 @@
     localStorage.setItem('solco_sort', sortMode);
     renderGrid();
   });
-  document.getElementById('view-toggle').textContent = viewMode === 'list' ? '☰' : '▤';
-  document.getElementById('view-toggle').addEventListener('click', () => {
-    viewMode = viewMode === 'grid' ? 'list' : 'grid';
+  function setViewMode(mode) {
+    viewMode = mode;
     localStorage.setItem('solco_view', viewMode);
-    document.getElementById('view-toggle').textContent = viewMode === 'list' ? '☰' : '▤';
-    haptic(HAPTIC.tap);
+    document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
+    document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
     renderGrid();
-  });
+  }
+  document.getElementById('view-grid-btn').addEventListener('click', () => { haptic(HAPTIC.tap); setViewMode('grid'); });
+  document.getElementById('view-list-btn').addEventListener('click', () => { haptic(HAPTIC.tap); setViewMode('list'); });
+  setViewMode(viewMode);
 </script>
 </body>
 </html>

@@ -105,6 +105,36 @@ async function loadCurrentUser() {
   try { return await api('/api/me'); } catch { return null; }
 }
 
+// --- pulsante profilo condiviso in cima alle schermate principali: mostra l'avatar
+// vero (o l'iniziale) al posto di un'icona generica, e apre il pannello con bio,
+// link al profilo, eventuale pannello admin e uscita. Richiede nel markup della
+// pagina: #profile-btn, #profile-sheet, #sheet-backdrop, #profile-username,
+// #profile-bio, #profile-avatar, #admin-link-wrap (opzionale), #logout-btn.
+async function initProfileMenu() {
+  const btn = document.getElementById('profile-btn');
+  const me = await loadCurrentUser();
+  if (!me) return me;
+
+  const avatarHtml = me.avatar_url
+    ? `<img src="${me.avatar_url}" style="width:100%;height:100%;object-fit:cover">`
+    : `<span style="font-family:var(--font-heading);font-weight:800;color:var(--color-neutral-700)">${me.username[0].toUpperCase()}</span>`;
+
+  if (btn) { btn.innerHTML = avatarHtml; btn.addEventListener('click', () => openSheet('profile-sheet')); }
+  const avatarEl = document.getElementById('profile-avatar');
+  if (avatarEl) avatarEl.innerHTML = avatarHtml;
+  const nameEl = document.getElementById('profile-username');
+  if (nameEl) nameEl.textContent = me.username;
+  const bioEl = document.getElementById('profile-bio');
+  if (bioEl) bioEl.textContent = me.bio || '';
+  if (me.role === 'Amministratore') {
+    const adminWrap = document.getElementById('admin-link-wrap');
+    if (adminWrap) adminWrap.style.display = 'block';
+  }
+  document.getElementById('sheet-backdrop')?.addEventListener('click', () => closeSheet('profile-sheet'));
+  document.getElementById('logout-btn')?.addEventListener('click', doLogout);
+  return me;
+}
+
 // --- ridimensiona una foto scelta dal telefono in un piccolo avatar quadrato ---
 // evita di salvare nel database immagini enormi: tutto resta locale finché non è pronto.
 function resizeImageToDataUrl(file, maxSize = 320, quality = 0.75) {

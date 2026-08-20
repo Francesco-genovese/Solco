@@ -20,7 +20,10 @@
 <div class="screen">
   <div class="topbar">
     <h1>Da cercare</h1>
-    <button class="icon-btn" id="add-btn" aria-label="Aggiungi">+</button>
+    <div style="display:flex;gap:8px">
+      <button class="icon-btn" id="profile-btn" aria-label="Profilo e impostazioni"></button>
+      <button class="icon-btn" id="add-btn" aria-label="Aggiungi">+</button>
+    </div>
   </div>
 
   <div id="wish-list" style="display:flex;flex-direction:column;gap:2px"></div>
@@ -64,8 +67,26 @@
   <button class="btn btn-outline btn-block" id="cancel-found-btn">Annulla</button>
 </div>
 
+<div class="sheet" id="profile-sheet">
+  <div class="sheet-handle"></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="profile-avatar" style="width:52px;height:52px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div>
+      <h3 id="profile-username" style="font-size:18px">—</h3>
+      <p id="profile-bio" style="font-size:13px;color:var(--color-neutral-700);margin-top:2px"></p>
+    </div>
+  </div>
+  <a href="/profilo.html" class="btn btn-secondary btn-block">Modifica profilo</a>
+  <div id="admin-link-wrap" style="display:none">
+    <a href="/admin.html" class="btn btn-secondary btn-block">Gestisci utenti e inviti</a>
+  </div>
+  <button class="btn btn-outline btn-block" id="logout-btn">Esci</button>
+</div>
+
 <script src="/assets/app.js"></script>
 <script>
+  initProfileMenu();
+
   let items = [];
   let activeFoundId = null;
 
@@ -101,7 +122,7 @@
   load();
 
   document.getElementById('add-btn').addEventListener('click', () => openSheet('add-sheet'));
-  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('add-sheet'); closeSheet('found-sheet'); });
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { closeSheet('add-sheet'); closeSheet('found-sheet'); closeSheet('profile-sheet'); });
   document.getElementById('cancel-found-btn').addEventListener('click', () => closeSheet('found-sheet'));
 
   document.getElementById('add-form').addEventListener('submit', async (e) => {

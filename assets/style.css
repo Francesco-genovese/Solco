@@ -50,7 +50,7 @@ button { font-family: inherit; cursor: pointer; }
 .btn-danger { background: var(--color-danger); color: #fff; }
 .btn-block { width: 100%; }
 .btn[disabled] { opacity: .5; pointer-events: none; }
-.icon-btn { width: 40px; height: 40px; border-radius: 0; border: none; background: var(--color-neutral-200); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+.icon-btn { width: 40px; height: 40px; border-radius: 0; border: none; background: var(--color-neutral-200); display: flex; align-items: center; justify-content: center; font-size: 17px; overflow: hidden; }
 
 /* --- tag / badge --- */
 .tag { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 0; font-size: 12px; font-family: var(--font-heading); font-weight: 800; }
@@ -67,6 +67,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .input:focus { outline: none; border-color: var(--color-accent); }
 textarea.input { resize: vertical; min-height: 80px; }
+select.input {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2379746e' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; background-size: 11px 7px;
+  padding-right: 36px;
+}
+select.input:focus { box-shadow: none; }
+select.input::-ms-expand { display: none; }
 
 /* --- stat mini-bar (in cima a libreria) --- */
 .stat-row { display: flex; gap: 20px; border-top: 2px solid var(--color-divider); border-bottom: 1px solid var(--color-divider); padding: 12px 0 14px; }
@@ -181,7 +189,12 @@ textarea.input { resize: vertical; min-height: 80px; }
 
 /* --- controlli sopra la griglia (ordina / vista) --- */
 .grid-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.grid-controls select.input { width: auto; padding: 8px 10px; font-size: 13px; min-height: 0; }
+.grid-controls select.input { width: auto; padding: 8px 34px 8px 12px; font-size: 13px; min-height: 0; background-position: right 10px center; }
+.seg-toggle { display: inline-flex; border: 1.5px solid var(--color-divider); flex: 0 0 auto; }
+.seg-toggle button { border: none; background: none; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-700); }
+.seg-toggle button + button { border-left: 1.5px solid var(--color-divider); }
+.seg-toggle button.active { background: var(--color-accent); color: #fff; }
+.seg-toggle svg { width: 16px; height: 16px; }
 
 /* --- feed attività amici --- */
 .activity-item { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--color-divider); font-size: 13px; }

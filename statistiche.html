@@ -18,7 +18,10 @@
 </head>
 <body>
 <div class="screen">
-  <div class="topbar"><h1>Statistiche</h1></div>
+  <div class="topbar">
+    <h1>Statistiche</h1>
+    <button class="icon-btn" id="profile-btn" aria-label="Profilo e impostazioni"></button>
+  </div>
 
   <div class="stat-row">
     <div class="stat"><div class="stat-label">Valore totale</div><div class="stat-value" id="s-value" style="font-size:26px">—</div></div>
@@ -40,8 +43,27 @@
   <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
 </nav>
 
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="profile-sheet">
+  <div class="sheet-handle"></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="profile-avatar" style="width:52px;height:52px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div>
+      <h3 id="profile-username" style="font-size:18px">—</h3>
+      <p id="profile-bio" style="font-size:13px;color:var(--color-neutral-700);margin-top:2px"></p>
+    </div>
+  </div>
+  <a href="/profilo.html" class="btn btn-secondary btn-block">Modifica profilo</a>
+  <div id="admin-link-wrap" style="display:none">
+    <a href="/admin.html" class="btn btn-secondary btn-block">Gestisci utenti e inviti</a>
+  </div>
+  <button class="btn btn-outline btn-block" id="logout-btn">Esci</button>
+</div>
+
 <script src="/assets/app.js"></script>
 <script>
+  initProfileMenu();
+
   const BUCKET_LABELS = { mint_nm: 'Mint / NM', vgplus: 'VG+', vg: 'VG', good: 'Good', fair_poor: 'Fair / Poor' };
   const BUCKET_COLORS = { mint_nm: '#1440d8', vgplus: '#4467f5', vg: '#8ba2ff', good: '#bab6b6', fair_poor: '#d7d3d3' };
 

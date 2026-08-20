@@ -18,7 +18,10 @@
 </head>
 <body>
 <div class="screen">
-  <div class="topbar"><h1>Amici</h1></div>
+  <div class="topbar">
+    <h1>Amici</h1>
+    <button class="icon-btn" id="profile-btn" aria-label="Profilo e impostazioni"></button>
+  </div>
 
   <div id="activity-block" style="display:none">
     <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:2px">Attività recente</div>
@@ -39,8 +42,27 @@
   <a class="tab" href="/cerca.html"><span class="tab-icon">☆</span>Da cercare</a>
 </nav>
 
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="profile-sheet">
+  <div class="sheet-handle"></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="profile-avatar" style="width:52px;height:52px;background:var(--color-neutral-200);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+    <div>
+      <h3 id="profile-username" style="font-size:18px">—</h3>
+      <p id="profile-bio" style="font-size:13px;color:var(--color-neutral-700);margin-top:2px"></p>
+    </div>
+  </div>
+  <a href="/profilo.html" class="btn btn-secondary btn-block">Modifica profilo</a>
+  <div id="admin-link-wrap" style="display:none">
+    <a href="/admin.html" class="btn btn-secondary btn-block">Gestisci utenti e inviti</a>
+  </div>
+  <button class="btn btn-outline btn-block" id="logout-btn">Esci</button>
+</div>
+
 <script src="/assets/app.js"></script>
 <script>
+  initProfileMenu();
+
   function timeAgo(iso) {
     const diffMin = Math.round((Date.now() - new Date(iso + 'Z').getTime()) / 60000);
     if (diffMin < 1) return 'adesso';
