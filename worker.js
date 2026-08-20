@@ -119,17 +119,37 @@ async function discogsSearch(env, params) {
 
 async function discogsPriceSuggestion(env, releaseId, conditionMedia) {
   if (!env.DISCOGS_TOKEN || !releaseId) return null;
+  const map = { M: 'Mint (M)', NM: 'Near Mint (NM or M-)', 'VG+': 'Very Good Plus (VG+)', VG: 'Very Good (VG)', 'G+': 'Good Plus (G+)', G: 'Good (G)', F: 'Fair (F)', P: 'Poor (P)' };
+  const order = ['M', 'NM', 'VG+', 'VG', 'G+', 'G', 'F', 'P'];
+
+  // 1) prezzo suggerito per condizione: provo prima quella esatta scelta,
+  // poi qualunque altra condizione per cui Discogs abbia dati (meglio un
+  // numero approssimato che nessun numero).
   try {
-    const url = `https://api.discogs.com/marketplace/price_suggestions/${releaseId}?token=${env.DISCOGS_TOKEN}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'SolcoApp/1.0 (+uso privato)' } });
-    if (!res.ok) return null;
-    const data = await res.json().catch(() => null);
-    if (!data) return null;
-    const map = { M: 'Mint (M)', NM: 'Near Mint (NM or M-)', 'VG+': 'Very Good Plus (VG+)', VG: 'Very Good (VG)', 'G+': 'Good Plus (G+)', G: 'Good (G)', F: 'Fair (F)', P: 'Poor (P)' };
-    const entry = data[map[conditionMedia]];
-    if (!entry) return null;
-    return { value_estimate: entry.value, currency: entry.currency };
-  } catch { return null; }
+    const res = await fetch(`https://api.discogs.com/marketplace/price_suggestions/${releaseId}?token=${env.DISCOGS_TOKEN}`, { headers: { 'User-Agent': 'SolcoApp/1.0 (+uso privato)' } });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        const tryOrder = [conditionMedia, ...order.filter(c => c !== conditionMedia)];
+        for (const code of tryOrder) {
+          const entry = data[map[code]];
+          if (entry && entry.value) return { value_estimate: entry.value, currency: entry.currency, exact: code === conditionMedia };
+        }
+      }
+    }
+  } catch { /* proviamo comunque il fallback sotto */ }
+
+  // 2) nessun dato per nessuna condizione su questo disco: prendo il prezzo di
+  // mercato generale (non differenziato per condizione), già in euro.
+  try {
+    const res2 = await fetch(`https://api.discogs.com/releases/${releaseId}?curr_abbr=EUR&token=${env.DISCOGS_TOKEN}`, { headers: { 'User-Agent': 'SolcoApp/1.0 (+uso privato)' } });
+    if (res2.ok) {
+      const rel = await res2.json().catch(() => null);
+      if (rel && rel.lowest_price) return { value_estimate: rel.lowest_price, currency: 'EUR', general: true };
+    }
+  } catch { /* niente, torniamo null sotto */ }
+
+  return null;
 }
 
 // --- API ---

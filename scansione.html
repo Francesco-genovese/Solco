@@ -242,13 +242,17 @@
         method: 'POST',
         body: JSON.stringify({ discogs_release_id: selectedDiscogsId, condition_media: document.getElementById('f-condition').value }),
       });
-      if (result && result.suggestion && result.suggestion.value_estimate) {
-        valueField.value = Math.round(result.suggestion.value_estimate);
+      const s = result && result.suggestion;
+      if (s && s.value_estimate) {
+        valueField.value = Math.round(s.value_estimate);
         valueField.placeholder = '€';
-        const cur = result.suggestion.currency;
-        toast(cur && cur !== 'EUR' ? `Valore suggerito: ${valueField.value} ${cur} (controlla il cambio)` : 'Valore suggerito da Discogs');
+        let msg = s.general
+          ? 'Nessun prezzo per questa condizione: uso il valore di mercato generale'
+          : (s.exact === false ? 'Nessun prezzo per questa condizione: preso da un\'altra condizione simile' : 'Valore suggerito da Discogs');
+        if (s.currency && s.currency !== 'EUR') msg += ` (${valueField.value} ${s.currency}, controlla il cambio)`;
+        toast(msg);
       } else {
-        valueField.placeholder = 'Discogs non ha un prezzo per questa condizione — inseriscilo tu';
+        valueField.placeholder = 'Discogs non ha nessun prezzo per questo disco — inseriscilo tu';
       }
     } catch { valueField.placeholder = '€'; }
   }
