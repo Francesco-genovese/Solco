@@ -1,120 +1,174 @@
-# Solco — setup
+# Solco — relay Discogs sul PC di casa, guida completa
 
-Segue esattamente i passi del tutorial Cloudflare Workers + D1 che avevi. Qui solo le
-aggiunte specifiche di questo progetto.
+Segui i passaggi in ordine. Ogni comando va incollato nel terminale del PC
+Ubuntu, a meno che non sia specificato diversamente (router, DuckDNS,
+Cloudflare sono pagine web).
 
-## 1. Passi 1–4 del tutorial
+---
 
-Repository GitHub, database D1 (chiamalo `solco-db` o come preferisci), struttura cartelle:
-tutti i file di questo pacchetto vanno alla radice del repository, `assets/` incluso.
+## Fase 0 — Verifica che la tua rete lo permetta (CGNAT)
 
-## 2. `wrangler.toml`
+Da un browser sul PC di casa:
+1. Vai su **whatismyip.com**, segna l'indirizzo che mostra.
+2. Entra nel pannello del router (di solito `192.168.1.1`, utente/password sono
+   sull'etichetta del router se non li hai mai cambiati) → cerca la voce
+   "WAN", "Internet" o "Stato connessione" → segna l'IP mostrato lì.
 
-Già pronto in questo pacchetto. Devi solo incollare il `database_id` del tuo database D1
-al posto di `INCOLLA-QUI-IL-TUO-DATABASE-ID`.
+**Se i due indirizzi coincidono**, procedi pure con questa guida.
+**Se sono diversi**, il tuo provider usa il CGNAT: questa strada non
+funziona senza soluzioni più complicate (fermati qui e fammelo sapere,
+troviamo un'alternativa).
 
-## 3. Schema database
+---
 
-Incolla tutto `schema.sql` nella Console D1 ed eseguilo. Contiene sia le tabelle di
-autenticazione sia quelle di Solco (`album`, `wishlist`, `invites`).
+## Fase 1 — Port forwarding sul router
 
-## 4. Deploy automatico da GitHub
+Nel pannello del router, cerca "Port Forwarding" o "NAT" (il nome cambia da
+marca a marca). Crea UNA sola regola:
 
-Come da tutorial: Workers & Pages → Create → Connect to Git → comando build
-`npx wrangler deploy`.
+- Porta esterna: `8787`
+- Porta interna: `8787`
+- IP interno: l'indirizzo locale del PC Ubuntu (lo trovi con `hostname -I` nel
+  terminale del PC, di solito qualcosa tipo `192.168.1.XX`)
+- Protocollo: TCP
 
-## 5. Primo account
+**Non aprire nessun'altra porta**, in particolare non la 22 (SSH) — per
+amministrare il PC lavori direttamente da lì o dalla rete di casa, non serve
+raggiungerlo da internet.
 
-Apri il sito da telefono (va aggiunto alla Home, vedi sotto), vai su `/register.html`:
-il primo account creato diventa Amministratore in automatico. Da lì, in **Utenti e
-inviti** (icona ☰ nella libreria) puoi generare un codice per far entrare le altre
-persone — lo aprono su `/register.html?invite=CODICE`.
+---
 
-## 6. Se avevi già installato Solco prima d'ora — migrazione
+## Fase 2 — DNS dinamico (l'IP di casa cambia ogni tanto)
 
-Questa versione aggiunge profilo (foto e bio), copertine vere, preferiti e il feed
-attività tra amici. Servono tre colonne in più che `schema.sql` da sola non aggiunge a
-un database già esistente (perché `CREATE TABLE IF NOT EXISTS` non tocca le tabelle già
-create).
+1. Vai su **duckdns.org** → accedi con Google/GitHub (gratis) → crea un
+   sottodominio a tua scelta, es. `soclorelay` (diventa
+   `soclorelay.duckdns.org`) → punta al tuo IP attuale (te lo propone da
+   solo) → Add domain.
+2. Segna il **token** che ti mostra in alto nella pagina.
+3. Sul PC Ubuntu, crea uno script che aggiorna l'IP ogni 5 minuti:
 
-Vai su D1 → il tuo database → Console → esegui queste righe **una volta sola**
-(se non le avevi già eseguite in un giro precedente):
-
-```sql
-ALTER TABLE users ADD COLUMN bio TEXT;
-ALTER TABLE album ADD COLUMN cover_url TEXT;
-ALTER TABLE album ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;
+```bash
+mkdir -p ~/duckdns
+cat > ~/duckdns/duck.sh << 'EOF'
+echo url="https://www.duckdns.org/update?domains=soclorelay&token=IL-TUO-TOKEN&ip=" | curl -k -o ~/duckdns/duck.log -K -
+EOF
+chmod +x ~/duckdns/duck.sh
 ```
 
-Se una riga dà errore "duplicate column name", vuol dire che l'avevi già eseguita:
-innocuo, salta solo quella e vai avanti con le altre.
+Sostituisci `soclorelay` e `IL-TUO-TOKEN` con i tuoi valori reali. Poi
+programmalo per girare ogni 5 minuti:
 
-Da questa versione: ogni persona vede solo i dischi che ha aggiunto lei; la sezione
-"Amici" mostra gli altri account, la loro collezione, i preferiti e un feed di cosa
-hanno aggiunto di recente.
+```bash
+(crontab -l 2>/dev/null; echo "*/5 * * * * ~/duckdns/duck.sh >/dev/null 2>&1") | crontab -
+```
 
-**Nota sulla gestione utenti**: sospendere un account o promuovere qualcuno ad
-Amministratore non si fa più (e non si è mai fatto) da un pannello nell'app — si fa
-direttamente da Cloudflare: D1 → il tuo database → **Esplora i dati** → tabella
-`users`, modificando `status` o `role` sulla riga giusta. È il modo più diretto,
-senza dover costruire e mantenere un'interfaccia apposta per un'azione così rara.
+Da questo momento, `soclorelay.duckdns.org` punterà sempre al tuo IP di
+casa attuale, anche se cambia.
 
-## 7. Discogs (riconoscimento automatico) — facoltativo
+---
 
-Senza questo passaggio l'app funziona comunque: dopo la scansione del codice a barre,
-se non trova nulla ti propone di compilare la scheda a mano.
+## Fase 3 — Firewall del PC (ufw)
 
-Per attivare il riconoscimento automatico:
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from 192.168.0.0/16 to any port 22 proto tcp
+```
 
-1. Crea un account su [discogs.com](https://www.discogs.com) se non ce l'hai già — **è gratis**, così come generare il token: nessun piano a pagamento richiesto.
-2. Vai su **Impostazioni → Sviluppo** e genera un **Personal Access Token**.
-3. Da terminale, nella cartella del progetto:
-   ```
-   npx wrangler secret put DISCOGS_TOKEN
-   ```
-   e incolla il token quando richiesto.
+(se il tuo router usa un altro schema di rete, tipo `10.x.x.x`, sostituisci
+`192.168.0.0/16` di conseguenza — lo vedi nel pannello del router).
 
-Il limite è di circa 60 richieste al minuto per token — ampiamente sufficiente per un
-uso personale (una scansione = una o due chiamate).
+Poi, la parte importante — accetta la porta del relay **solo** dagli
+indirizzi ufficiali di Cloudflare:
 
-Due cose da sapere:
-- Il **numero di matrice** (quello inciso vicino all'etichetta) non è cercabile in modo
-  affidabile via API: nell'app lo inserisci a mano, il codice a barre invece viene letto
-  dalla fotocamera in automatico (libreria ZXing, caricata da CDN).
-- Il **valore di mercato suggerito** (`/api/valore`) usa l'endpoint dei "price suggestions"
-  di Discogs: è pensato per chi vende sul loro marketplace e in alcuni casi può non
-  restituire dati. Quando manca, inseriscilo a mano — il campo è sempre modificabile.
+```bash
+for ip in $(curl -s https://www.cloudflare.com/ips-v4); do sudo ufw allow from $ip to any port 8787 proto tcp; done
+for ip in $(curl -s https://www.cloudflare.com/ips-v6); do sudo ufw allow from $ip to any port 8787 proto tcp; done
+sudo ufw enable
+sudo ufw status
+```
 
-## 8. Installazione sul telefono
+L'ultimo comando deve mostrare `Status: active` con le regole elencate.
 
-L'app è pensata *solo* per essere aperta dall'icona sulla schermata Home, non dal
-browser. La prima volta:
+---
 
-1. Apri l'indirizzo del tuo Worker da Safari (iPhone) o Chrome (Android).
-2. Vedrai una schermata con le istruzioni per installarla — anche `install.html`, se
-   qualcuno prova ad aprirla da desktop, oppure da telefono senza averla ancora
-   installata.
-3. Da lì in poi si apre sempre dall'icona, a schermo intero.
+## Fase 4 — Carica ed avvia il relay
 
-## Cose ereditate dal tutorial, valide anche qui
+Se hai già i file `relay.py` e `solco-relay.service` (dallo zip
+`solco-relay.zip` di prima), copiali nella cartella home del PC, ad esempio
+dentro `~/solco-relay/`.
 
-Le note in fondo al tutorial originale (icone che si cachano, permessi fotocamera su
-iPhone che non si ricordano tra un'apertura e l'altra della PWA installata, migrazioni
-SQL sempre manuali) si applicano anche a Solco.
+Poi:
 
-## Semplificazioni di questa prima versione (MVP)
+```bash
+sudo cp ~/solco-relay/solco-relay.service /etc/systemd/system/
+sudo nano /etc/systemd/system/solco-relay.service
+```
 
-Per restare essenziali, alcune cose sono ridotte all'osso e possono essere estese in
-seguito, chiedendo alla chat di lavorarci sopra:
-- Le copertine arrivano da Discogs quando il disco viene riconosciuto in scansione, o
-  puoi scattare/caricare una foto tua (in scansione, sul profilo o modificando un disco
-  già in libreria). Se manca entrambe, resta un segnaposto con il motivo del logo.
-- Nessun caricamento foto della copertina/etichetta separato dalla copertina principale.
-- Il grafico "valore nel tempo" è calcolato dalla data di aggiunta alla libreria, non da
-  uno storico di rivalutazioni.
-- La foto profilo viene ridimensionata a 320×320 nel telefono prima dell'invio e salvata
-  come immagine incorporata nel database (non c'è uno storage file separato tipo R2):
-  va benissimo per un piccolo gruppo di amici, meno per foto ad alta risoluzione.
-- "Amici" mostra tutti gli account con un profilo pubblico all'interno del gruppo — non
-  c'è un sistema di richieste di amicizia: chi ha un account può vedere le collezioni
-  di tutti gli altri, coerente con l'idea di un'app privata già ristretta a poche persone.
+Nel file, cambia **quattro** righe (a differenza di un VPS, qui è il tuo PC
+di casa):
+
+- `Environment=DISCOGS_TOKEN=INCOLLA-QUI-IL-TUO-TOKEN-DISCOGS` → il tuo token Discogs
+- `Environment=RELAY_SECRET=INCOLLA-QUI-UNA-PASSWORD-A-CASO-LUNGA` → una password lunga a caso (32+ caratteri)
+- `ExecStart=/usr/bin/python3 /home/ubuntu/solco-relay/relay.py` → `ExecStart=/usr/bin/python3 /home/TUO-UTENTE/solco-relay/relay.py`
+- `User=ubuntu` → `User=TUO-UTENTE`
+
+(il tuo nome utente è quello che vedi nel prompt del terminale, oppure lo
+trovi col comando `whoami`)
+
+Salva (Ctrl+O, invio, Ctrl+X), poi avvia:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable solco-relay
+sudo systemctl start solco-relay
+sudo systemctl status solco-relay
+```
+
+Deve apparire "active (running)" in verde. Se dà errore:
+`sudo journalctl -u solco-relay -n 50`.
+
+---
+
+## Fase 5 — Test locale, prima di collegare Cloudflare
+
+```bash
+curl -H "X-Relay-Secret: LA-TUA-PASSWORD" "http://localhost:8787/proxy?path=/database/search&q=test"
+```
+
+Deve rispondere con del JSON pieno di risultati Discogs, non un errore.
+
+Poi un test **da fuori casa** (es. dal telefono con il Wi-Fi disattivato,
+usando la connessione dati):
+
+```
+http://soclorelay.duckdns.org:8787/proxy?path=/database/search&q=test
+```
+
+(aperto da browser mostrerà "non autorizzato" — è giusto così, manca
+l'header segreto che solo il Worker manderà; l'importante è che risponda
+qualcosa e non vada in timeout, altrimenti il port forwarding non è a posto)
+
+---
+
+## Fase 6 — Collega Cloudflare
+
+Cloudflare Dashboard → Workers & Pages → Worker "solco" → Settings →
+Variables and Secrets → Add, due volte:
+
+- `RELAY_URL` (variabile normale) → `http://soclorelay.duckdns.org:8787`
+- `RELAY_SECRET` (tipo **Secret**) → la stessa password della Fase 4
+
+Deploy per applicare.
+
+Poi carica su GitHub il `worker.js` aggiornato (dallo zip di prima, quello
+già pronto per usare il relay) e aspetta il deploy automatico.
+
+---
+
+## Fase 7 — Prova vera
+
+Apri l'app, scansiona un disco. Se trova i risultati Discogs, hai finito.
+
+Se qualcosa non va, dimmi a quale Fase ti sei fermato e cosa vedi sullo
+schermo — ripartiamo da lì insieme.
